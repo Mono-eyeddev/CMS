@@ -1,0 +1,39 @@
+# ----------------
+# Python
+# ----------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Django
+.env
+*.log
+
+# Python virtual environments
+venv/
+env/
+.venv/
+
+# ----------------
+# Node
+# ----------------
+node_modules/
+dist/
+build/
+
+# npm
+npm-debug.log*
+
+# ----------------
+# IDE
+# ----------------
+.vscode/
+.idea/
+
+# ----------------
+# OS
+# ----------------
+.DS_Store
+Thumbs.db

@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- CIMS Animated Background --- */
+
+.rain-bg {
+  position: relative;
+  width: 100%;
+  min-height: 100vh;
+  overflow: hidden;
+
+  /* match your login navy */
+  background-color: #020d1f;
+
+  /* softer CIMS accent */
+  --c: rgba(0, 174, 239, 0.25);
+}
+
+/* glass subtle overlay */
+.rain-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  backdrop-filter: blur(6px) brightness(1.1);
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    transparent 0,
+    transparent 2px,
+    rgba(0, 174, 239, 0.05) 2px
+  );
+  background-size: 12px 12px;
+}
+
+/* rain effect */
+.rain-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+
+  background-image:
+    radial-gradient(2px 80px at 0px 200px, var(--c), transparent),
+    radial-gradient(2px 80px at 300px 200px, var(--c), transparent),
+    radial-gradient(1px 1px at 150px 100px, var(--c), transparent);
+
+  background-size:
+    300px 200px,
+    300px 200px,
+    300px 200px;
+
+  animation: rainMove 60s linear infinite;
+}
+
+@keyframes rainMove {
+  from {
+    background-position:
+      0px 0px,
+      3px 0px,
+      150px 100px;
+  }
+  to {
+    background-position:
+      0px 6000px,
+      3px 6000px,
+      150px 6100px;
+  }
+}
