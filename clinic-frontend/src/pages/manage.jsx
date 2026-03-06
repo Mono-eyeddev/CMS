@@ -1,7 +1,7 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-
+import api from "../api/api";
+import { submitKPI } from "../api/kpi";
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const mkTheme = (dark) => ({
   pageBg:      dark ? "#020d1f"                    : "#EEF2F7",
@@ -47,69 +47,205 @@ const MOCK_HISTORY = [
 ];
 
 const DEFAULT_KPI = {
-  // A – Patient load
-  total_patients: "", new_cases: "", emergency_cases: "",
-  critical_cases: "", icu_transfers: "", mortality_count: "",
+
+  // Shift
+  shift: "DAY",
+
+  // ===============================
+  // A – Patient Load
+  // ===============================
+  total_patients: "",
+  new_cases: "",
+  emergency_cases: "",
+  critical_cases: "",
+  icu_transfers: "",
+  mortality_count: "",
+
+  // ===============================
   // B – Staffing
-  staff_on_duty: "", nurses_absent: "", overtime_hours: "",
-  // C – Critical handling
+  // ===============================
+  staff_on_duty: "",
+  nurses_absent: "",
+  overtime_hours: "",
+
+  // ===============================
+  // C – Critical Handling
+  // ===============================
   unattended_critical_cases: "",
+
+  // ===============================
   // D – Infrastructure
-  power_outage_hours: "", internet_downtime_hours: "",
-  stockout_oxygen: "No", stockout_essential_drugs: "No",
+  // ===============================
+  power_outage_hours: "",
+  internet_downtime_hours: "",
+  stockout_oxygen: "No",
+  stockout_essential_drugs: "No",
+
+  // ===============================
   // E – Quality
-  bed_occupancy_rate: "", readmission_rate: "", patient_complaints: "",
+  // ===============================
+  bed_occupancy_rate: "",
+  readmission_rate: "",
+  patient_complaints: "",
+
+  // ===============================
+  // F – Disease Surveillance
+  // ===============================
+  malaria_cases: "",
+  cholera_cases: "",
+  respiratory_cases: "",
+
+  // ===============================
+  // G – Service Turnaround Time
+  // ===============================
+  triage_wait_time: "",
+  lab_turnaround_time: "",
+  pharmacy_wait_time: "",
+
+  // ===============================
+  // H – Manager Comments
+  // ===============================
+  comments: ""
+
 };
 
 const KPI_BLOCKS = [
+
+  // ===============================
+  // A. PATIENT LOAD
+  // ===============================
+
   {
-    id:"A", label:"Patient Load", color:"#00AEEF",
-    icon:"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
-    fields:[
-      { key:"total_patients",   label:"Total Patients",    type:"number", unit:"pts"  },
-      { key:"new_cases",        label:"New Cases",          type:"number", unit:"pts"  },
-      { key:"emergency_cases",  label:"Emergency Cases",    type:"number", unit:"pts"  },
-      { key:"critical_cases",   label:"Critical Cases",     type:"number", unit:"pts"  },
-      { key:"icu_transfers",    label:"ICU Transfers",      type:"number", unit:"pts"  },
-      { key:"mortality_count",  label:"Mortality Count",    type:"number", unit:"pts"  },
-    ],
+    id: "A",
+    label: "Patient Load",
+    color: "#00AEEF",
+    icon: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+    fields: [
+      { key: "total_patients", label: "Total Patients", type: "number", unit: "pts" },
+      { key: "new_cases", label: "New Cases", type: "number", unit: "pts" },
+      { key: "emergency_cases", label: "Emergency Cases", type: "number", unit: "pts" },
+      { key: "critical_cases", label: "Critical Cases", type: "number", unit: "pts" },
+      { key: "icu_transfers", label: "ICU Transfers", type: "number", unit: "pts" },
+      { key: "mortality_count", label: "Mortality Count", type: "number", unit: "pts" }
+    ]
   },
+
+  // ===============================
+  // B. STAFFING
+  // ===============================
+
   {
-    id:"B", label:"Staffing", color:"#00C48C",
-    icon:"M17 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
-    fields:[
-      { key:"staff_on_duty",   label:"Staff on Duty",    type:"number", unit:"ppl" },
-      { key:"nurses_absent",   label:"Nurses Absent",    type:"number", unit:"ppl" },
-      { key:"overtime_hours",  label:"Overtime Hours",   type:"number", unit:"hrs" },
-    ],
+    id: "B",
+    label: "Staffing",
+    color: "#00C48C",
+    icon: "M17 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
+    fields: [
+      { key: "staff_on_duty", label: "Staff on Duty", type: "number", unit: "ppl" },
+      { key: "nurses_absent", label: "Nurses Absent", type: "number", unit: "ppl" },
+      { key: "overtime_hours", label: "Overtime Hours", type: "number", unit: "hrs" }
+    ]
   },
+
+  // ===============================
+  // C. CRITICAL HANDLING
+  // ===============================
+
   {
-    id:"C", label:"Critical Handling", color:"#FF4D4D",
-    icon:"M22 12h-4l-3 9L9 3l-3 9H2",
-    fields:[
-      { key:"unattended_critical_cases", label:"Unattended Critical Cases", type:"number", unit:"pts" },
-    ],
+    id: "C",
+    label: "Critical Handling",
+    color: "#FF4D4D",
+    icon: "M22 12h-4l-3 9L9 3l-3 9H2",
+    fields: [
+      { key: "unattended_critical_cases", label: "Unattended Critical Cases", type: "number", unit: "pts" }
+    ]
   },
+
+  // ===============================
+  // D. INFRASTRUCTURE
+  // ===============================
+
   {
-    id:"D", label:"Infrastructure", color:"#FFB020",
-    icon:"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
-    fields:[
-      { key:"power_outage_hours",      label:"Power Outage Hours",       type:"number", unit:"hrs" },
-      { key:"internet_downtime_hours", label:"Internet Downtime Hours",  type:"number", unit:"hrs" },
-      { key:"stockout_oxygen",         label:"Stockout: Oxygen",         type:"select", options:["No","Yes"] },
-      { key:"stockout_essential_drugs",label:"Stockout: Essential Drugs",type:"select", options:["No","Yes"] },
-    ],
+    id: "D",
+    label: "Infrastructure",
+    color: "#FFB020",
+    icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z",
+    fields: [
+      { key: "power_outage_hours", label: "Power Outage Hours", type: "number", unit: "hrs" },
+      { key: "internet_downtime_hours", label: "Internet Downtime Hours", type: "number", unit: "hrs" },
+      { key: "stockout_oxygen", label: "Stockout: Oxygen", type: "select", options: ["No", "Yes"] },
+      { key: "stockout_essential_drugs", label: "Stockout: Essential Drugs", type: "select", options: ["No", "Yes"] }
+    ]
   },
+
+  // ===============================
+  // E. QUALITY
+  // ===============================
+
   {
-    id:"E", label:"Quality", color:"#A855F7",
-    icon:"M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
-    fields:[
-      { key:"bed_occupancy_rate",  label:"Bed Occupancy Rate",  type:"number", unit:"%"  },
-      { key:"readmission_rate",    label:"Readmission Rate",    type:"number", unit:"%"  },
-      { key:"patient_complaints",  label:"Patient Complaints",  type:"number", unit:"no" },
-    ],
+    id: "E",
+    label: "Quality",
+    color: "#A855F7",
+    icon: "M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11",
+    fields: [
+      { key: "bed_occupancy_rate", label: "Bed Occupancy Rate", type: "number", unit: "%" },
+      { key: "readmission_rate", label: "Readmission Rate", type: "number", unit: "%" },
+      { key: "patient_complaints", label: "Patient Complaints", type: "number", unit: "no" }
+    ]
   },
+
+  // ===============================
+  // F. DISEASE SURVEILLANCE
+  // ===============================
+
+  {
+    id: "F",
+    label: "Disease Surveillance",
+    color: "#EF4444",
+    icon: "M3 12h18M12 3v18",
+    fields: [
+      { key: "malaria_cases", label: "Malaria Cases", type: "number", unit: "cases" },
+      { key: "cholera_cases", label: "Cholera Cases", type: "number", unit: "cases" },
+      { key: "respiratory_cases", label: "Respiratory Cases", type: "number", unit: "cases" }
+    ]
+  },
+
+  // ===============================
+  // G. SERVICE TURNAROUND TIMES
+  // ===============================
+
+  {
+    id: "G",
+    label: "Service Turnaround Time",
+    color: "#0EA5E9",
+    icon: "M12 8v4l3 3",
+    fields: [
+      { key: "triage_wait_time", label: "Triage Wait Time", type: "number", unit: "mins" },
+      { key: "lab_turnaround_time", label: "Lab Result Time", type: "number", unit: "mins" },
+      { key: "pharmacy_wait_time", label: "Pharmacy Wait Time", type: "number", unit: "mins" }
+    ]
+  },
+
+  // ===============================
+  // H. COMMENTS
+  // ===============================
+
+{
+  id: "H",
+  label: "Manager Comments",
+  color: "#64748B",
+  icon: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14",
+  fields: [
+    { 
+      key: "comments", 
+      label: "Additional Notes", 
+      type: "textarea",
+      inputType: "text"  // Force text input
+    }
+  ]
+}
+
 ];
+
 
 // ─── ICON ─────────────────────────────────────────────────────────────────────
 const Ico = ({ d, size=18, color="currentColor", stroke=2 }) => (
@@ -630,19 +766,86 @@ function KPIForm({ t, kpi, setKpi, formState }) {
                     {field.unit && <span style={{ fontWeight:400, textTransform:"none", color:t.textMt, fontSize:"10px", letterSpacing:0 }}>({field.unit})</span>}
                     {filled && field.type!=="select" && <span style={{ marginLeft:"auto", color:block.color, fontSize:"10px" }}>✓</span>}
                   </label>
-                  {field.type==="select" ? (
-                    <select value={kpi[field.key]} onChange={e=>handleChange(field.key,e.target.value)}
-                      style={{ width:"100%", padding:"10px 12px", background:t.inputBg, border:`1.5px solid ${t.inputBd}`, borderRadius:"9px", fontSize:"13px", color:t.text, outline:"none", fontFamily:"'DM Sans',sans-serif", appearance:"none", backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`, backgroundRepeat:"no-repeat", backgroundPosition:"right 10px center", paddingRight:"30px", cursor:"pointer" }}>
-                      {field.options.map(o=><option key={o} value={o}>{o}</option>)}
-                    </select>
-                  ) : (
-                    <input type="number" min="0" step={field.unit==="%"?"0.1":"1"}
-                      value={kpi[field.key]} placeholder="0"
-                      onChange={e=>handleChange(field.key,e.target.value)}
-                      onFocus={e=>{ e.target.style.borderColor=block.color; e.target.style.boxShadow=`0 0 0 3px ${block.color}20`; }}
-                      onBlur={e=>{ e.target.style.borderColor=t.inputBd; e.target.style.boxShadow="none"; }}
-                      style={{ width:"100%", padding:"10px 12px", background:t.inputBg, border:`1.5px solid ${t.inputBd}`, borderRadius:"9px", fontSize:"13px", color:t.text, outline:"none", fontFamily:"'DM Sans',sans-serif", transition:"border-color .2s, box-shadow .2s" }}/>
-                  )}
+                 {field.type === "select" ? (
+
+  <select
+    value={kpi[field.key]}
+    onChange={e=>handleChange(field.key,e.target.value)}
+    style={{
+      width:"100%",
+      padding:"10px 12px",
+      background:t.inputBg,
+      border:`1.5px solid ${t.inputBd}`,
+      borderRadius:"9px",
+      fontSize:"13px",
+      color:t.text,
+      outline:"none",
+      fontFamily:"'DM Sans',sans-serif",
+      appearance:"none",
+      backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")`,
+      backgroundRepeat:"no-repeat",
+      backgroundPosition:"right 10px center",
+      paddingRight:"30px",
+      cursor:"pointer"
+    }}
+  >
+    {field.options.map(o=><option key={o} value={o}>{o}</option>)}
+  </select>
+
+) : field.type === "textarea" ? (
+
+  <textarea
+    value={kpi[field.key] || ""}
+    placeholder="Enter additional notes..."
+    rows={4}
+    onChange={e=>handleChange(field.key,e.target.value)}
+    style={{
+      width:"500%",
+      padding:"10px 12px",
+      background:t.inputBg,
+      border:`1.5px solid ${t.inputBd}`,
+      borderRadius:"9px",
+      fontSize:"13px",
+      color:t.text,
+      outline:"none",
+      fontFamily:"'DM Sans',sans-serif",
+      resize:"vertical",
+      transition:"border-color .2s, box-shadow .2s"
+    }}
+  />
+
+) : (
+
+  <input
+    type="number"
+    min="0"
+    step={field.unit==="%"?"0.1":"1"}
+    value={kpi[field.key]}
+    placeholder="0"
+    onChange={e=>handleChange(field.key,e.target.value)}
+    onFocus={e=>{
+      e.target.style.borderColor=block.color;
+      e.target.style.boxShadow=`0 0 0 3px ${block.color}20`;
+    }}
+    onBlur={e=>{
+      e.target.style.borderColor=t.inputBd;
+      e.target.style.boxShadow="none";
+    }}
+    style={{
+      width:"100%",
+      padding:"10px 12px",
+      background:t.inputBg,
+      border:`1.5px solid ${t.inputBd}`,
+      borderRadius:"9px",
+      fontSize:"13px",
+      color:t.text,
+      outline:"none",
+      fontFamily:"'DM Sans',sans-serif",
+      transition:"border-color .2s, box-shadow .2s"
+    }}
+  />
+
+)}
                 </div>
               );
             })}
@@ -694,7 +897,8 @@ export default function Manager() {
   const [history, setHistory]   = useState(MOCK_HISTORY);
   const [notifs, setNotifs]     = useState(MOCK_NOTIFS);
   const [toast, setToast]       = useState(null);
-
+  const [staff, setStaff]       = useState([]);
+  const [staffLoading, setStaffLoading] = useState(true);
   const t = mkTheme(dark);
 
   const showToast = useCallback((msg, type="success") => {
@@ -710,20 +914,78 @@ export default function Manager() {
     showToast("Draft saved locally.", "info");
   };
 
-  const handleSubmit = () => {
-    if (!allFilled()) { showToast("Please fill all KPI fields before submitting.", "error"); return; }
+const handleSubmit = async () => {
+  if (!allFilled()) {
+    showToast("Please fill all KPI fields before submitting.", "error");
+    return;
+  }
+
+const data = {
+  ...kpi,
+
+  total_patients: Number(kpi.total_patients),
+  new_cases: Number(kpi.new_cases),
+  emergency_cases: Number(kpi.emergency_cases),
+  critical_cases: Number(kpi.critical_cases),
+  icu_transfers: Number(kpi.icu_transfers),
+  mortality_count: Number(kpi.mortality_count),
+
+  staff_on_duty: Number(kpi.staff_on_duty),
+  nurses_absent: Number(kpi.nurses_absent),
+  overtime_hours: Number(kpi.overtime_hours),
+
+  unattended_critical_cases: Number(kpi.unattended_critical_cases),
+
+  power_outage_hours: Number(kpi.power_outage_hours),
+  internet_downtime_hours: Number(kpi.internet_downtime_hours),
+
+  malaria_cases: Number(kpi.malaria_cases),
+  cholera_cases: Number(kpi.cholera_cases),
+  respiratory_cases: Number(kpi.respiratory_cases),
+
+  triage_wait_time: Number(kpi.triage_wait_time),
+  lab_turnaround_time: Number(kpi.lab_turnaround_time),
+  pharmacy_wait_time: Number(kpi.pharmacy_wait_time),
+
+  stockout_oxygen: kpi.stockout_oxygen === "Yes",
+  stockout_essential_drugs: kpi.stockout_essential_drugs === "Yes",
+
+  bed_occupancy_rate: Number(kpi.bed_occupancy_rate),
+  readmission_rate: Number(kpi.readmission_rate),
+  patient_complaints: Number(kpi.patient_complaints),
+
+  comments: kpi.comments,
+  shift: kpi.shift
+};
+  try {
     setFormState("submitting");
-    setTimeout(()=>{
-      setFormState("submitted");
-      setHistory(prev=>[{ id:Date.now(), date:"Just now", status:"success", note:`Submitted ${new Date().toLocaleTimeString()}` }, ...prev]);
-      showToast("Report submitted successfully!");
-      // Reset after 3s
-      setTimeout(()=>{
-        setKpi(DEFAULT_KPI);
-        setFormState("idle");
-      }, 3000);
-    }, 1800);
-  };
+
+    await submitKPI(data);
+
+    setFormState("submitted");
+
+    setHistory((prev) => [
+      {
+        id: Date.now(),
+        date: "Just now",
+        status: "success",
+        note: `Submitted ${new Date().toLocaleTimeString()}`,
+      },
+      ...prev,
+    ]);
+
+    showToast("Report submitted successfully!");
+  } catch (error) {
+    setFormState("idle");
+
+    if (error.message.includes("already submitted")) {
+      showToast("You have already submitted today's KPI report.", "error");
+    } else {
+      showToast("Submission failed. Please try again.", "error");
+      console.log("Submitting KPI to:", "/auth/manager/kpi/submit/");
+    }
+  }
+};
 
   const handleClear = () => { setKpi(DEFAULT_KPI); setFormState("idle"); showToast("Form cleared.", "info"); };
 
@@ -732,6 +994,13 @@ export default function Manager() {
     const draft = localStorage.getItem("cims_kpi_draft");
     if (draft) { try { setKpi(JSON.parse(draft)); setFormState("draft"); } catch {} }
   }, []);
+// Fetch clinic staff
+  useEffect(() => {
+   api.get("/api/auth/manager/staff/")
+    .then(res => setStaff(res.data))
+    .catch(() => setStaff([]))
+    .finally(() => setStaffLoading(false));
+}, []);
 
   const totalFilled = KPI_BLOCKS.reduce((acc,b)=>acc+b.fields.filter(f=>f.type==="select"||kpi[f.key]!=="").length, 0);
   const totalFields = KPI_BLOCKS.reduce((acc,b)=>acc+b.fields.length, 0);
@@ -910,7 +1179,72 @@ export default function Manager() {
               <HistoryTable t={t} history={history}/>
             </div>
           </div>
+        {/* ── Clinic Staff ── */}
+          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+              <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <Ico d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" size={17} color={t.accent}/>
+              </div>
+              <div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Clinic Staff</div>
+                <div style={{ fontSize:"11px", color:t.textSub }}>
+                  {staffLoading ? "Loading…" : `${staff.length} staff member${staff.length !== 1 ? "s" : ""}`}
+                </div>
+              </div>
+            </div>
+            <div style={{ padding:"14px 18px", overflowX:"auto" }}>
+              {staffLoading ? (
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"32px", gap:"10px", color:t.textSub, fontSize:"13px" }}>
+                  <span style={{ width:"16px", height:"16px", border:`2px solid ${t.border}`, borderTop:`2px solid ${t.accent}`, borderRadius:"50%", display:"inline-block", animation:"spin .7s linear infinite" }}/>
+                  Loading staff…
+                </div>
+              ) : staff.length === 0 ? (
+                <div style={{ textAlign:"center", padding:"32px", color:t.textMt, fontSize:"13px", fontStyle:"italic" }}>
+                  No staff found
+                </div>
+              ) : (
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+                  <thead>
+                    <tr>
+                      {["Name","Role","Qualification","Training Coverage"].map(h => (
+                        <th key={h} style={{ textAlign:"left", padding:"9px 14px", color:t.textMt, fontWeight:700, fontSize:"10px", letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", borderBottom:`1px solid ${t.border}`, whiteSpace:"nowrap" }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {staff.map((s, i) => (
+                      <tr key={s.id}
+                        style={{ background: i % 2 === 0 ? "transparent" : t.rowBg, transition:"background .15s" }}
+                        onMouseEnter={e => e.currentTarget.style.background = t.accentGl}
+                        onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "transparent" : t.rowBg}>
+                        <td style={{ padding:"11px 14px", fontWeight:600, color:t.text, whiteSpace:"nowrap" }}>{s.name}</td>
+                        <td style={{ padding:"11px 14px", color:t.textSub }}>{s.role}</td>
+                        <td style={{ padding:"11px 14px", color:t.textSub }}>{s.qualification}</td>
+                        <td style={{ padding:"11px 14px" }}>
+                          <span style={{
+                            display:"inline-flex", alignItems:"center", gap:"5px",
+                            background: s.training_coverage ? t.success+"18" : t.danger+"12",
+                            border: `1px solid ${s.training_coverage ? t.success+"44" : t.danger+"33"}`,
+                            borderRadius:"20px", padding:"3px 10px",
+                            fontSize:"11px", fontWeight:700,
+                            color: s.training_coverage ? t.success : t.danger,
+                            fontFamily:"'Syne',sans-serif",
+                          }}>
+                            <span style={{ width:"5px", height:"5px", borderRadius:"50%", background: s.training_coverage ? t.success : t.danger, display:"inline-block" }}/>
+                            {s.training_coverage ? "Yes" : "No"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
 
+        
         </main>
       </div>
     </div>
