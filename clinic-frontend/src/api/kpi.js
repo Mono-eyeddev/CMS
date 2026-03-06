@@ -2,7 +2,7 @@ import api from "./api";
 
 export const submitKPI = async (kpiData) => {
   try {
-    const res = await api.post("/auth/manager/kpi/submit/", kpiData);
+    const res = await api.post("/api/auth/manager/kpi/submit/", kpiData);
     return res.data;
   } catch (error) {
     // send backend message to React

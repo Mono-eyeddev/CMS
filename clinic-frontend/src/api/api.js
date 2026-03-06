@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://127.0.0.1:8000/api",
+  baseURL: "http://127.0.0.1:8000",
 });
 
 // Attach access token
@@ -50,5 +50,8 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
+api.interceptors.request.use((config) => {
+  console.log("API REQUEST:", config.baseURL + config.url);
+  return config;
+});
 export default api;

@@ -982,7 +982,7 @@ const data = {
       showToast("You have already submitted today's KPI report.", "error");
     } else {
       showToast("Submission failed. Please try again.", "error");
-      console.log("Submitting KPI to:", "/auth/manager/kpi/submit/");
+      console.log("Submitting KPI to:", "api/auth/manager/kpi/submit/");
     }
   }
 };

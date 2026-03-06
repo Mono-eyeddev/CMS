@@ -364,6 +364,7 @@ const styles = {
   footerDot: { width: "4px", height: "4px", borderRadius: "50%", background: "#CCC", display: "inline-block" },
 };
 
+
 export default function Login() {
   const navigate = useNavigate();
 
