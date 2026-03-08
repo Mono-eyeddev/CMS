@@ -8,6 +8,8 @@ from .views import (
     CNODashboardView,
     SubmitKPIView,
     CheckKPISubmissionView,
+    AuditLogsView,
+    ExportAuditLogsView,
 )
 
 from .views_cno import (
@@ -22,7 +24,9 @@ from .views_cno import (
 )
 
 urlpatterns = [
+    
     path("login/",                  LoginView.as_view(),             name="login"),
+    path("audit-logs/",             AuditLogsView.as_view()),
     path("token/refresh/",          TokenRefreshView.as_view(),      name="token_refresh"),
     path("sysadmin/dashboard/",     SysAdminDashboardView.as_view(), name="sysadmin_dashboard"),
     path("manager/dashboard/",      ManagerDashboardView.as_view(),  name="manager_dashboard"),
@@ -36,5 +40,6 @@ urlpatterns = [
     path("cno/reports/",            CNOReportsView.as_view()),
     path("cno/notifications/",      CNONotificationsView.as_view()),
     path("cno/profile/",            CNOProfileView.as_view()),
+    path("audit-logs/export/", ExportAuditLogsView.as_view()),
     path("api/auth/manager/kpi/check-submission/", CheckKPISubmissionView.as_view()),
 ]

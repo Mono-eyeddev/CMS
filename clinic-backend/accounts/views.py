@@ -9,19 +9,65 @@ from datetime import date, timedelta
 from .serializers import LoginSerializer, KPISerializer
 from .permissions import IsSysAdmin, IsManager, IsCNO
 from .models import ClinicKPI, Staff
+from .models import AuditLog
+from .serializers import AuditLogSerializer
+from .utils import log_audit
+from .models import User
+import csv
+from django.http import HttpResponse
 
+# =========================
+# Audit log export view
+# =========================
+class ExportAuditLogsView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+
+        logs = AuditLog.objects.all().order_by("-timestamp")
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="audit_logs.csv"'
+
+        writer = csv.writer(response)
+
+        writer.writerow([
+            "User",
+            "Action",
+            "IP Address",
+            "Details",
+            "Timestamp"
+        ])
+
+        for log in logs:
+            writer.writerow([
+                log.user,
+                log.action,
+                log.ip_address,
+                log.details,
+                log.timestamp
+            ])
+
+        return response
+
+# =========================
+# Audit_logs
+# =========================
+class AuditLogsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        logs = AuditLog.objects.all().order_by("-timestamp")
+        serializer = AuditLogSerializer(logs, many=True)
+        return Response(serializer.data)
 
 # =========================
 # SHIFT DETECTION
 # =========================
 
 def get_shift_and_date():
-    """
-    Returns (shift, shift_date) based on server local time.
-    - DAY shift:   06:30 → 18:29  (shift_date = today)
-    - NIGHT shift: 18:30 → 06:29  (shift_date = the day the shift STARTED)
-      → After midnight (00:00–06:29), shift_date = yesterday
-    """
+  
     now = timezone.localtime()
     current_minutes = now.hour * 60 + now.minute
 
@@ -43,7 +89,6 @@ def get_shift_and_date():
 # =========================
 # LOGIN VIEW
 # =========================
-
 class LoginView(APIView):
 
     permission_classes = [AllowAny]
@@ -52,9 +97,27 @@ class LoginView(APIView):
         serializer = LoginSerializer(data=request.data)
 
         if serializer.is_valid():
-            return Response(serializer.validated_data)
+
+            data = serializer.validated_data
+
+            print("LOGIN DEBUG → serializer data:", data)
+
+            email = data.get("email")
+
+            user = User.objects.filter(email=email).first()
+
+            if user:
+                log_audit(user, "User login", request, "Successful login")
+                print(f"AUDIT LOG SAVED → {user}")
+            else:
+                print("AUDIT LOG FAILED → user lookup failed")
+
+            return Response(data)
+
+        print("LOGIN FAILED → serializer invalid")
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 # =========================
@@ -201,9 +264,15 @@ class SubmitKPIView(APIView):
                 manager=request.user,
                 clinic=clinic,
                 shift=shift,
-                shift_date=shift_date      # ← persist the canonical shift date
+                shift_date=shift_date      # ensure shift_date is saved correctly for night shifts
             )
-
+            log_audit(
+                    request.user,
+                    "Submitted KPI",
+                     request,
+                    f"{clinic.name} {shift} shift KPI"
+     )
+        
             return Response(
                 {
                     "message": f"{shift} shift KPI submitted successfully.",
@@ -214,3 +283,4 @@ class SubmitKPIView(APIView):
             )
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+       

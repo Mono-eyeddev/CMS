@@ -2,8 +2,21 @@ from rest_framework import serializers
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import User, ClinicKPI
+from .models import AuditLog
 
+class AuditLogSerializer(serializers.ModelSerializer):
 
+    user = serializers.StringRelatedField()
+
+    class Meta:
+        model = AuditLog
+        fields = [
+            "user",
+            "action",
+            "timestamp",
+            "ip_address",
+            "details"
+        ]
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)

@@ -444,7 +444,12 @@ export default function Login() {
               ))}
             </div>
           </div>
-
+          <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+            <div style={{height:"1px",background:"linear-gradient(90deg, rgba(0,174,239,0.3), transparent)"}}/>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}><div>
+              <div style={{fontFamily:"'Syne',sans-serif",fontSize:"11px",fontWeight:800,color:"rgba(255,255,255,0.5)",letterSpacing:"1px"}}>{"© "}{new Date().getFullYear()}{" "}
+                <span style={{color:"#00AEEF"}}> All Rights reserved</span></div>
+                <div style={{fontSize:"10px",color:"rgba(255,255,255,0.2)",marginTop:"2px",letterSpacing:"0.5px"}}> Built with ♥ by Sajaad Iqbal</div></div><a href="https://mono-eyeddev.github.io/myPortfolio/" target="_blank" rel="noreferrer" style={{padding:"6px 12px",background:"rgba(0,174,239,0.08)",border:"1px solid rgba(0,174,239,0.2)",borderRadius:"8px",textDecoration:"none",fontFamily:"'Syne',sans-serif",fontSize:"10px",fontWeight:700,color:"#00AEEF",letterSpacing:"0.5px",transition:"all .2s"}} onMouseEnter={e=>{e.currentTarget.style.background="rgba(0,174,239,0.18)";}} onMouseLeave={e=>{e.currentTarget.style.background="rgba(0,174,239,0.08)";}}>{"Portfolio →"}</a></div></div>
           <div style={styles.versionBadge}>CMS v1.0 — Secure Access Portal</div>
         </div>
 
@@ -459,7 +464,7 @@ export default function Login() {
               </div>
             </div>
 
-            <h2 style={styles.signInText}>Sign In</h2>
+            <h2 style={styles.signInText}>Log in</h2>
             <p style={styles.signInSub}>Enter your credentials to access your dashboard</p>
 
             {error && <div style={styles.errorBox}>⚠ {error}</div>}
@@ -508,12 +513,9 @@ export default function Login() {
                 />
               </div>
 
-              <div style={styles.fieldGroup}>
-                <div style={styles.labelRow}>
-                  <label style={styles.label}>Password</label>
-                  <a href="#" style={styles.forgotLink}>
-                    Forgot password?
-                  </a>
+              <div style={styles.fieldGroup}><div style={styles.labelRow}>
+                <label style={styles.label}>Password</label>
+                <a href="#" style={styles.forgotLink} onClick={e=>{e.preventDefault();setError("Please contact your site admin to reset your password.");}}>Forgot password?</a>
                 </div>
 
                 <div style={styles.passwordWrap}>
