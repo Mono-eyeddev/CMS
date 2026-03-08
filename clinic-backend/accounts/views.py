@@ -3,11 +3,41 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from datetime import date
+from django.utils import timezone
+from datetime import date, timedelta
 
 from .serializers import LoginSerializer, KPISerializer
 from .permissions import IsSysAdmin, IsManager, IsCNO
-from .models import ClinicKPI
+from .models import ClinicKPI, Staff
+
+
+# =========================
+# SHIFT DETECTION
+# =========================
+
+def get_shift_and_date():
+    """
+    Returns (shift, shift_date) based on server local time.
+    - DAY shift:   06:30 → 18:29  (shift_date = today)
+    - NIGHT shift: 18:30 → 06:29  (shift_date = the day the shift STARTED)
+      → After midnight (00:00–06:29), shift_date = yesterday
+    """
+    now = timezone.localtime()
+    current_minutes = now.hour * 60 + now.minute
+
+    DAY_START   = 6 * 60 + 30   # 06:30
+    NIGHT_START = 18 * 60 + 30  # 18:30
+
+    if DAY_START <= current_minutes < NIGHT_START:
+        return "DAY", now.date()
+
+    elif current_minutes >= NIGHT_START:
+        # Night shift, before midnight — shift started today
+        return "NIGHT", now.date()
+
+    else:
+        # Night shift, after midnight (00:00–06:29) — shift started yesterday
+        return "NIGHT", (now - timedelta(days=1)).date()
 
 
 # =========================
@@ -19,7 +49,6 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-
         serializer = LoginSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -37,7 +66,6 @@ class SysAdminDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsSysAdmin]
 
     def get(self, request):
-
         return Response({
             "message": "Welcome SysAdmin",
             "user": request.user.email,
@@ -54,7 +82,6 @@ class CNODashboardView(APIView):
     permission_classes = [IsAuthenticated, IsCNO]
 
     def get(self, request):
-
         return Response({
             "message": "Welcome CNO",
             "user": request.user.email,
@@ -71,24 +98,24 @@ class ManagerDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
     def get(self, request):
-
         return Response({
             "message": "Welcome Manager",
             "user": request.user.email,
             "role": request.user.role,
             "clinic": request.user.clinic.name if request.user.clinic else None
         })
+
+
 # =========================
-# Staff
+# MANAGER STAFF VIEW
 # =========================
+
 class ManagerStaffView(APIView):
 
     permission_classes = [IsAuthenticated, IsManager]
 
     def get(self, request):
-
         clinic = request.user.clinic
-
         staff = Staff.objects.filter(clinic=clinic)
 
         data = [
@@ -103,59 +130,87 @@ class ManagerStaffView(APIView):
         ]
 
         return Response(data)
+
+
 # =========================
 # KPI SUBMISSION
 # =========================
+class CheckKPISubmissionView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
 
+    def get(self, request):
+        clinic = request.user.clinic
+        if not clinic:
+            return Response({"already_submitted": False})
+
+        shift, shift_date = get_shift_and_date()
+
+        already_submitted = ClinicKPI.objects.filter(
+            clinic=clinic,
+            shift=shift,
+            shift_date=shift_date
+        ).exists()
+
+        return Response({
+            "already_submitted": already_submitted,
+            "shift": shift,
+            "shift_date": str(shift_date)
+        })
 class SubmitKPIView(APIView):
- permission_classes = [IsAuthenticated, IsManager]
 
- def post(self, request):
+    permission_classes = [IsAuthenticated, IsManager]
 
-    # Ensure manager has a clinic
-    if not request.user.clinic:
-        return Response(
-            {"error": "Manager is not assigned to a clinic."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+    def post(self, request):
 
-    shift = request.data.get("shift")
+        # Manager must belong to a clinic
+        clinic = request.user.clinic
+        if not clinic:
+            return Response(
+                {"error": "Manager is not assigned to a clinic."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-    if not shift:
-        return Response(
-            {"error": "Shift is required."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        # --------------------------
+        # Determine shift + date
+        # --------------------------
+        shift, shift_date = get_shift_and_date()
 
-    today = date.today()
+        # --------------------------
+        # Prevent duplicate reports
+        # (uses shift_date, not created_at, so night shifts crossing midnight work correctly)
+        # --------------------------
+        already_submitted = ClinicKPI.objects.filter(
+            clinic=clinic,
+            shift=shift,
+            shift_date=shift_date
+        ).exists()
 
-    # Prevent duplicate submissions
-    existing = ClinicKPI.objects.filter(
-        clinic=request.user.clinic,
-        shift=shift,
-        created_at__date=today
-    ).exists()
+        if already_submitted:
+            return Response(
+                {"error": "already submitted"},  # frontend checks this exact string
+                status=status.HTTP_409_CONFLICT
+            )
 
-    if existing:
-        return Response(
-            {"error": "You have already submitted today's KPI report for this shift."},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        # --------------------------
+        # Save KPI
+        # --------------------------
+        serializer = KPISerializer(data=request.data)
 
-    serializer = KPISerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(
+                manager=request.user,
+                clinic=clinic,
+                shift=shift,
+                shift_date=shift_date      # ← persist the canonical shift date
+            )
 
-    if serializer.is_valid():
+            return Response(
+                {
+                    "message": f"{shift} shift KPI submitted successfully.",
+                    "shift": shift,
+                    "shift_date": str(shift_date)
+                },
+                status=status.HTTP_201_CREATED
+            )
 
-        serializer.save(
-            manager=request.user,
-            clinic=request.user.clinic
-        )
-
-        return Response(
-            {"message": "KPI submitted successfully"},
-            status=status.HTTP_201_CREATED
-        )
-
-    print("KPI SUBMISSION ERROR:", serializer.errors)
-
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

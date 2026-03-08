@@ -11,7 +11,8 @@ class Clinic(models.Model):
     name = models.CharField(max_length=150)
     location = models.CharField(max_length=150)
     code = models.CharField(max_length=20, unique=True)
-
+    timezone = models.CharField(max_length=60, default="UTC")
+    
     def __str__(self):
         return self.name
 
@@ -79,7 +80,8 @@ class ClinicKPI(models.Model):
     shift = models.CharField(max_length=10, choices=SHIFT_CHOICES)
 
     created_at = models.DateTimeField(auto_now_add=True)
-
+    
+    shift_date = models.DateField(null=True, blank=True)
 
     # ===============================
     # A. PATIENT LOAD
@@ -151,7 +153,10 @@ class ClinicKPI(models.Model):
     # ===============================
 
     comments = models.TextField(blank=True, null=True)
-
+    
+    class Meta:
+    # Enforces: one report per clinic, per shift, per shift-day
+       unique_together = ("clinic", "shift", "shift_date")
 
     def __str__(self):
         return f"{self.clinic.name} - {self.shift} - {self.created_at.date()}"

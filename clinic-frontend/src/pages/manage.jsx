@@ -268,23 +268,63 @@ function useOutsideClick(ref, handler) {
 function useDeadlineCountdown() {
   const [timeLeft, setTimeLeft] = useState("");
   const [urgent, setUrgent] = useState(false);
+  const [shiftLabel, setShiftLabel] = useState("");
+
   useEffect(() => {
     const tick = () => {
       const now = new Date();
-      const deadline = new Date(); deadline.setHours(18,30,0,0);
-      if (now > deadline) { setTimeLeft("Deadline passed"); setUrgent(true); return; }
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+
+      // Current time in minutes since midnight
+      const currentMinutes = hours * 60 + minutes;
+      const dayStart = 6 * 60 + 30;   // 06:30
+      const nightStart = 18 * 60 + 30; // 18:30
+
+      let deadline = new Date();
+      let label = "";
+
+      const isDayShift = currentMinutes >= dayStart && currentMinutes < nightStart;
+
+      if (isDayShift) {
+        // Day shift: 06:30 → 18:30
+        label = "Day Shift";
+        deadline.setHours(18, 30, 0, 0);
+      } else {
+        // Night shift: 18:30 → 06:30 next day
+        label = "Night Shift";
+        deadline.setHours(6, 30, 0, 0);
+        // If we're past midnight (00:00–06:30), deadline is today
+        // If we're before midnight (18:30–23:59), deadline is tomorrow
+        if (currentMinutes >= nightStart) {
+          deadline.setDate(deadline.getDate() + 1);
+        }
+      }
+
+      setShiftLabel(label);
+
       const diff = deadline - now;
-      const h = Math.floor(diff/3600000);
-      const m = Math.floor((diff%3600000)/60000);
-      const s = Math.floor((diff%60000)/1000);
-      setUrgent(diff < 3600000);
+
+      if (diff <= 0) {
+        setTimeLeft("Deadline passed");
+        setUrgent(true);
+        return;
+      }
+
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+
+      setUrgent(diff < 3600000); // urgent if less than 1 hour left
       setTimeLeft(`${h}h ${m}m ${s}s`);
     };
+
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, []);
-  return { timeLeft, urgent };
+
+  return { timeLeft, urgent, shiftLabel };
 }
 
 // ─── STATUS BADGE ─────────────────────────────────────────────────────────────
@@ -715,17 +755,35 @@ function Header({ t, dark, setDark, notifs, setNotifs, mobileOpen, setMobileOpen
 
 // ─── DEADLINE BANNER ──────────────────────────────────────────────────────────
 function DeadlineBanner({ t }) {
-  const { timeLeft, urgent } = useDeadlineCountdown();
+  const { timeLeft, urgent, shiftLabel } = useDeadlineCountdown();
   return (
     <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"12px 18px", background:urgent?t.danger+"12":t.accentGl, border:`1px solid ${urgent?t.danger+"44":t.borderSt}`, borderRadius:"12px" }}>
       <div style={{ width:"32px", height:"32px", borderRadius:"8px", background:urgent?t.danger+"20":t.accent+"20", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
         <Ico d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" size={16} color={urgent?t.danger:t.accent}/>
       </div>
       <div>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"13px", fontWeight:700, color:urgent?t.danger:t.text }}>Daily Submission Deadline: 6:30 PM</div>
-        <div style={{ fontSize:"12px", color:t.textSub, marginTop:"1px" }}>Time remaining: <strong style={{ color:urgent?t.danger:t.accent }}>{timeLeft}</strong></div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"13px", fontWeight:700, color:urgent?t.danger:t.text }}>
+          {shiftLabel} Deadline: {shiftLabel === "Day Shift" ? "6:30 PM" : "6:30 AM"}
+        </div>
+        <div style={{ fontSize:"12px", color:t.textSub, marginTop:"1px" }}>
+          Time remaining: <strong style={{ color:urgent?t.danger:t.accent }}>
+            {timeLeft === "Deadline passed" ? "Deadline passed" : timeLeft}
+          </strong>
+        </div>
       </div>
-      <div style={{ marginLeft:"auto", fontFamily:"'Syne',sans-serif", fontSize:"22px", fontWeight:800, color:urgent?t.danger:t.accent }}>{timeLeft}</div>
+
+      {/* Shift pill */}
+      <div style={{ display:"flex", alignItems:"center", gap:"6px", padding:"4px 10px", background:urgent?t.danger+"15":t.accent+"15", border:`1px solid ${urgent?t.danger+"33":t.accent+"33"}`, borderRadius:"20px" }}>
+        <span style={{ width:"6px", height:"6px", borderRadius:"50%", background:urgent?t.danger:t.accent, display:"inline-block" }}/>
+        <span style={{ fontFamily:"'Syne',sans-serif", fontSize:"11px", fontWeight:700, color:urgent?t.danger:t.accent }}>
+          {shiftLabel}
+        </span>
+      </div>
+
+      {/* Countdown */}
+      <div style={{ marginLeft:"auto", fontFamily:"'Syne',sans-serif", fontSize:"22px", fontWeight:800, color:urgent?t.danger:t.accent }}>
+        {timeLeft}
+      </div>
     </div>
   );
 }
@@ -914,49 +972,51 @@ export default function Manager() {
     showToast("Draft saved locally.", "info");
   };
 
+const { timeLeft, urgent, shiftLabel } = useDeadlineCountdown();
+
 const handleSubmit = async () => {
   if (!allFilled()) {
     showToast("Please fill all KPI fields before submitting.", "error");
     return;
   }
 
-const data = {
-  ...kpi,
+  const data = {
+    shift: shiftLabel === "Day Shift" ? "DAY" : "NIGHT",
 
-  total_patients: Number(kpi.total_patients),
-  new_cases: Number(kpi.new_cases),
-  emergency_cases: Number(kpi.emergency_cases),
-  critical_cases: Number(kpi.critical_cases),
-  icu_transfers: Number(kpi.icu_transfers),
-  mortality_count: Number(kpi.mortality_count),
+    total_patients: Number(kpi.total_patients),
+    new_cases: Number(kpi.new_cases),
+    emergency_cases: Number(kpi.emergency_cases),
+    critical_cases: Number(kpi.critical_cases),
+    icu_transfers: Number(kpi.icu_transfers),
+    mortality_count: Number(kpi.mortality_count),
 
-  staff_on_duty: Number(kpi.staff_on_duty),
-  nurses_absent: Number(kpi.nurses_absent),
-  overtime_hours: Number(kpi.overtime_hours),
+    staff_on_duty: Number(kpi.staff_on_duty),
+    nurses_absent: Number(kpi.nurses_absent),
+    overtime_hours: Number(kpi.overtime_hours),
 
-  unattended_critical_cases: Number(kpi.unattended_critical_cases),
+    unattended_critical_cases: Number(kpi.unattended_critical_cases),
 
-  power_outage_hours: Number(kpi.power_outage_hours),
-  internet_downtime_hours: Number(kpi.internet_downtime_hours),
+    power_outage_hours: Number(kpi.power_outage_hours),
+    internet_downtime_hours: Number(kpi.internet_downtime_hours),
 
-  malaria_cases: Number(kpi.malaria_cases),
-  cholera_cases: Number(kpi.cholera_cases),
-  respiratory_cases: Number(kpi.respiratory_cases),
+    malaria_cases: Number(kpi.malaria_cases),
+    cholera_cases: Number(kpi.cholera_cases),
+    respiratory_cases: Number(kpi.respiratory_cases),
 
-  triage_wait_time: Number(kpi.triage_wait_time),
-  lab_turnaround_time: Number(kpi.lab_turnaround_time),
-  pharmacy_wait_time: Number(kpi.pharmacy_wait_time),
+    triage_wait_time: Number(kpi.triage_wait_time),
+    lab_turnaround_time: Number(kpi.lab_turnaround_time),
+    pharmacy_wait_time: Number(kpi.pharmacy_wait_time),
 
-  stockout_oxygen: kpi.stockout_oxygen === "Yes",
-  stockout_essential_drugs: kpi.stockout_essential_drugs === "Yes",
+    stockout_oxygen: kpi.stockout_oxygen === "Yes",
+    stockout_essential_drugs: kpi.stockout_essential_drugs === "Yes",
 
-  bed_occupancy_rate: Number(kpi.bed_occupancy_rate),
-  readmission_rate: Number(kpi.readmission_rate),
-  patient_complaints: Number(kpi.patient_complaints),
+    bed_occupancy_rate: Number(kpi.bed_occupancy_rate),
+    readmission_rate: Number(kpi.readmission_rate),
+    patient_complaints: Number(kpi.patient_complaints),
 
-  comments: kpi.comments,
-  shift: kpi.shift
-};
+    comments: kpi.comments,
+  };
+
   try {
     setFormState("submitting");
 
@@ -969,24 +1029,24 @@ const data = {
         id: Date.now(),
         date: "Just now",
         status: "success",
-        note: `Submitted ${new Date().toLocaleTimeString()}`,
+        note: `${shiftLabel} submitted at ${new Date().toLocaleTimeString()}`,
       },
       ...prev,
     ]);
 
-    showToast("Report submitted successfully!");
+    showToast(`${shiftLabel} report submitted successfully!`);
+
   } catch (error) {
     setFormState("idle");
 
     if (error.message.includes("already submitted")) {
-      showToast("You have already submitted today's KPI report.", "error");
+      showToast(`You have already submitted the ${shiftLabel} report.`, "error");
     } else {
       showToast("Submission failed. Please try again.", "error");
-      console.log("Submitting KPI to:", "api/auth/manager/kpi/submit/");
     }
   }
 };
-
+   
   const handleClear = () => { setKpi(DEFAULT_KPI); setFormState("idle"); showToast("Form cleared.", "info"); };
 
   // Load draft on mount
@@ -1001,6 +1061,26 @@ const data = {
     .catch(() => setStaff([]))
     .finally(() => setStaffLoading(false));
 }, []);
+// On mount, check if already submitted for current shift
+useEffect(() => {
+  const checkSubmission = async () => {
+    try {
+      const response = await fetch("api/auth/manager/kpi/check-submission/", {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access")}`,
+        },
+      });
+      const data = await response.json();
+      if (data.already_submitted) {
+        setFormState("submitted");
+      }
+    } catch (err) {
+      console.error("Failed to check submission status", err);
+    }
+  };
+  checkSubmission();
+}, []);
+
 
   const totalFilled = KPI_BLOCKS.reduce((acc,b)=>acc+b.fields.filter(f=>f.type==="select"||kpi[f.key]!=="").length, 0);
   const totalFields = KPI_BLOCKS.reduce((acc,b)=>acc+b.fields.length, 0);
@@ -1035,7 +1115,7 @@ const data = {
         <main style={{ flex:1, overflowY:"auto", padding:"20px", display:"flex", flexDirection:"column", gap:"18px" }}>
 
           {/* Deadline banner */}
-          <DeadlineBanner t={t}/>
+           <DeadlineBanner t={t} />
 
           {/* Page info row */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"10px" }}>
@@ -1076,16 +1156,18 @@ const data = {
                   <Ico d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" size={14} color={t.warning}/>
                   Save Draft
                 </button>
-                <button onClick={handleSubmit} disabled={formState==="submitting"||formState==="submitted"}
-                  style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 26px", background:formState==="submitted"?t.success+`99`:`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:formState==="submitting"||formState==="submitted"?"not-allowed":"pointer", opacity:formState==="submitting"?.8:1, boxShadow:`0 6px 20px ${t.accent}44`, transition:"all .2s" }}>
-                  {formState==="submitting" ? (
+                <button onClick={handleSubmit} disabled={formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"}
+                      style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 26px", background:formState==="submitted"?t.success+`99`:timeLeft==="Deadline passed"?t.danger+"99":`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"?"not-allowed":"pointer", opacity:formState==="submitting"?.8:1, boxShadow:`0 6px 20px ${t.accent}44`, transition:"all .2s" }}>
+                    {formState==="submitting" ? (
                     <><span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,.3)", borderTop:"2px solid #fff", borderRadius:"50%", animation:"spin .7s linear infinite", display:"inline-block" }}/> Submitting…</>
-                  ) : formState==="submitted" ? (
-                    <><Ico d="M20 6L9 17l-5-5" size={14} color="#fff" stroke={2.5}/> Submitted!</>
-                  ) : (
-                    <><Ico d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" size={14} color="#fff"/> Submit Final</>
-                  )}
-                </button>
+                     ) : formState==="submitted" ? (
+                       <><Ico d="M20 6L9 17l-5-5" size={14} color="#fff" stroke={2.5}/> Submitted!</>
+                    ) : timeLeft==="Deadline passed" ? (
+                       <><Ico d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" size={14} color="#fff"/> Deadline Passed</>
+                         ) : (
+                       <><Ico d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" size={14} color="#fff"/> Submit Final</>
+                     )}
+                    </button>
               </div>
             </div>
 
