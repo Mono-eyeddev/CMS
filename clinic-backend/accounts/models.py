@@ -181,4 +181,13 @@ class ClinicKPI(models.Model):
     def __str__(self):
         return f"{self.clinic.name} - {self.shift} - {self.created_at.date()}"
     
-    
+class RiskPrediction(models.Model):
+
+        kpi = models.OneToOneField(ClinicKPI, on_delete=models.CASCADE)  # OneToOne prevents duplicates
+        clinic = models.ForeignKey(Clinic, on_delete=models.CASCADE)
+        risk_score = models.FloatField()
+        risk_level = models.CharField(max_length=10)
+        created_at = models.DateTimeField(auto_now_add=True)
+
+        def __str__(self):
+          return f"{self.clinic.name} - {self.risk_score}"

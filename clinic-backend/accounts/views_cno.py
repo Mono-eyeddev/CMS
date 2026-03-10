@@ -8,34 +8,13 @@ from django.utils.timezone import now
 
 from accounts.models import Clinic, ClinicKPI
 from accounts.permissions import IsCNO
-
+from ml.ebm_model import predict_risk
 from datetime import timedelta, date
 import joblib
 
-ebm_model = joblib.load("ml/ebm_model.pkl")
 
-def _predict_risk(kpi):
 
-    critical_ratio = kpi.critical_cases / kpi.total_patients if kpi.total_patients else 0
-    staff_ratio = kpi.staff_on_duty / kpi.total_patients if kpi.total_patients else 0
 
-    mortality_flag = kpi.mortality_count > 0
-    resource_failure = kpi.stockout_oxygen or kpi.stockout_essential_drugs
-
-    features = [[
-        critical_ratio,
-        staff_ratio,
-        kpi.bed_occupancy_rate,
-        mortality_flag,
-        resource_failure
-    ]]
-
-    score = ebm_model.predict_proba(features)[0][1]
-
-    # probability smoothing
-    score = 0.05 + (score * 0.9)
-
-    return float(score)
 
 
 User = get_user_model()
@@ -84,7 +63,7 @@ class CNOClinicRiskView(APIView):
             if not latest:
                 continue
 
-            score = _predict_risk(latest)
+            score = predict_risk(latest)
             risk_level = _risk_level(score)
 
             if risk_level == "HIGH":
@@ -113,7 +92,7 @@ class CNOClinicRiskView(APIView):
             ).order_by("-created_at").first()
 
             if yesterday:
-                prev_score = _predict_risk(yesterday)
+                prev_score = predict_risk(yesterday)
                 trend = "up" if score > prev_score else ("down" if score < prev_score else "stable")
             else:
                 trend = "stable"
@@ -169,7 +148,7 @@ class CNOAlertsView(APIView):
             if not latest:
                 continue
 
-            score = _predict_risk(latest)
+            score = predict_risk(latest)
             if score < 0.5:
                 continue
 
@@ -537,7 +516,7 @@ class CNONotificationsView(APIView):
             if not latest:
                 continue
 
-            score = _predict_risk(latest)
+            score = predict_risk(latest)
             level = _risk_level(score)
 
             if level == "HIGH":
