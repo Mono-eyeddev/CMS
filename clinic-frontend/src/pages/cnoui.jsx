@@ -1,210 +1,67 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AreaChart, Area, BarChart, Bar, LineChart, Line,
+  AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, ReferenceLine,
 } from "recharts";
 
-/* ═══════════════════════════════════════════════════════════════
-   THEME ENGINE
-═══════════════════════════════════════════════════════════════ */
-const mkT = (dark) => ({
-  pageBg:    dark ? "#030f1e"                     : "#EEF2F7",
-  sidebarBg: dark ? "rgba(3,15,30,0.98)"          : "#FFFFFF",
-  headerBg:  dark ? "rgba(3,15,30,0.96)"          : "rgba(255,255,255,0.97)",
-  cardBg:    dark ? "rgba(255,255,255,0.03)"      : "#FFFFFF",
-  cardHd:    dark ? "rgba(0,174,239,0.05)"        : "rgba(0,100,180,0.03)",
-  inputBg:   dark ? "rgba(255,255,255,0.06)"      : "#F0F4F8",
-  popBg:     dark ? "#0a1e36"                     : "#FFFFFF",
-  rowBg:     dark ? "rgba(255,255,255,0.025)"     : "#FAFCFF",
-  tooltipBg: dark ? "#0d2540"                     : "#FFFFFF",
-  border:    dark ? "rgba(0,174,239,0.11)"        : "#D0DFF0",
-  borderSt:  dark ? "rgba(0,174,239,0.28)"        : "#A8C4E0",
-  inputBd:   dark ? "rgba(0,174,239,0.22)"        : "#B8D0E8",
-  text:      dark ? "#F0F6FF"                     : "#0A1628",
-  textSub:   dark ? "#6B7A99"                     : "#3D5175",
-  textMt:    dark ? "#3D5175"                     : "#8FA3BF",
-  accent:    dark ? "#00AEEF"                     : "#0077B6",
-  accentDk:  dark ? "#0077B6"                     : "#005A8E",
-  accentGl:  dark ? "rgba(0,174,239,0.13)"        : "rgba(0,119,182,0.09)",
-  success:   dark ? "#00C48C"                     : "#009E72",
-  warning:   dark ? "#FFB020"                     : "#C4870A",
-  danger:    dark ? "#FF4D4D"                     : "#D93636",
-  purple:    dark ? "#A855F7"                     : "#7C3AED",
-  gridLine:  dark ? "rgba(255,255,255,0.045)"     : "rgba(10,22,40,0.06)",
-  chartText: dark ? "#4A6080"                     : "#8FA3BF",
-  shadow:    dark ? "0 4px 28px rgba(0,0,0,.45)" : "0 4px 24px rgba(10,22,40,.08)",
-  popShadow: dark ? "0 16px 48px rgba(0,0,0,.7)" : "0 16px 48px rgba(10,22,40,.18)",
-  overlay:   dark ? "rgba(0,0,0,.60)"             : "rgba(10,22,40,.35)",
+const API = "http://127.0.0.1:8000/api/auth/cno";
+
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("access_token")}`,
 });
 
-/* ═══════════════════════════════════════════════════════════════
-   MOCK DATA
-═══════════════════════════════════════════════════════════════ */
-const CLINICS = [
-  { id:1, name:"City Clinic",   score:0.82, trend:"↑", bedOccupancy:94, staffAvail:58, emergencyCases:42, absenteeism:40, treatmentDelay:38, icuPressure:91, issues:["Staff Absenteeism 40%","Emergency Overload","Drug Shortage"],   coords:{ x:22, y:38 } },
-  { id:2, name:"Ridge Clinic",  score:0.74, trend:"↑", bedOccupancy:88, staffAvail:64, emergencyCases:35, absenteeism:32, treatmentDelay:30, icuPressure:86, issues:["ICU at Capacity","Nurse Shortage – 6 Absent"],               coords:{ x:76, y:30 } },
-  { id:3, name:"Town Clinic",   score:0.63, trend:"→", bedOccupancy:82, staffAvail:70, emergencyCases:28, absenteeism:24, treatmentDelay:45, icuPressure:74, issues:["Bed Occupancy 88%","Treatment Delays 45 min"],               coords:{ x:54, y:24 } },
-  { id:4, name:"Harbor Clinic", score:0.55, trend:"↑", bedOccupancy:79, staffAvail:73, emergencyCases:22, absenteeism:19, treatmentDelay:26, icuPressure:68, issues:["Oxygen Low Stock","Overtime Surge"],                         coords:{ x:37, y:66 } },
-  { id:5, name:"Valley Clinic", score:0.31, trend:"↓", bedOccupancy:63, staffAvail:84, emergencyCases:14, absenteeism:10, treatmentDelay:12, icuPressure:44, issues:["Minor Staffing Gap"],                                        coords:{ x:69, y:61 } },
-  { id:6, name:"Bay Clinic",    score:0.22, trend:"↓", bedOccupancy:55, staffAvail:93, emergencyCases: 9, absenteeism: 7, treatmentDelay: 8, icuPressure:32, issues:[],                                                            coords:{ x:14, y:71 } },
-];
+const CLINIC_COORDS = {
+  nairobi: { x: 55, y: 52 },
+  kisumu:  { x: 28, y: 47 },
+  mombasa: { x: 72, y: 72 },
+  eldoret: { x: 35, y: 32 },
+};
+const getCoords = (name) => {
+  const key = name.toLowerCase();
+  for (const [k, v] of Object.entries(CLINIC_COORDS)) {
+    if (key.includes(k)) return v;
+  }
+  return { x: 50, y: 50 };
+};
 
-const DAYS = ["Mar 19","Mar 20","Mar 21","Mar 22","Mar 23","Mar 24","Mar 25","Mar 26","Mar 27","Mar 28","Mar 29","Mar 30","Mar 31","Apr 1"];
-const TREND_DATA = DAYS.map((day, i) => ({
-  day,
-  absenteeism: Math.round(18 + Math.sin(i * 0.7) * 8  + Math.random() * 6),
-  emergencies:  Math.round(32 + Math.sin(i * 0.5) * 12 + Math.random() * 8),
-  delays:       Math.round(22 + Math.sin(i * 0.9) * 7  + Math.random() * 5),
-  occupancy:    Math.round(68 + Math.sin(i * 0.4) * 10 + Math.random() * 6),
-}));
+const mkT = (dark) => ({
+  pageBg:    dark ? "#030f1e"                    : "#EEF2F7",
+  sidebarBg: dark ? "rgba(3,15,30,0.98)"         : "#FFFFFF",
+  headerBg:  dark ? "rgba(3,15,30,0.96)"         : "rgba(255,255,255,0.97)",
+  cardBg:    dark ? "rgba(255,255,255,0.03)"     : "#FFFFFF",
+  cardHd:    dark ? "rgba(0,174,239,0.05)"       : "rgba(0,100,180,0.03)",
+  inputBg:   dark ? "rgba(255,255,255,0.06)"     : "#F0F4F8",
+  popBg:     dark ? "#0a1e36"                    : "#FFFFFF",
+  rowBg:     dark ? "rgba(255,255,255,0.025)"    : "#FAFCFF",
+  tooltipBg: dark ? "#0d2540"                    : "#FFFFFF",
+  border:    dark ? "rgba(0,174,239,0.11)"       : "#D0DFF0",
+  borderSt:  dark ? "rgba(0,174,239,0.28)"       : "#A8C4E0",
+  inputBd:   dark ? "rgba(0,174,239,0.22)"       : "#B8D0E8",
+  text:      dark ? "#F0F6FF"                    : "#0A1628",
+  textSub:   dark ? "#6B7A99"                    : "#3D5175",
+  textMt:    dark ? "#3D5175"                    : "#8FA3BF",
+  accent:    dark ? "#00AEEF"                    : "#0077B6",
+  accentDk:  dark ? "#0077B6"                    : "#005A8E",
+  accentGl:  dark ? "rgba(0,174,239,0.13)"       : "rgba(0,119,182,0.09)",
+  success:   dark ? "#00C48C"                    : "#009E72",
+  warning:   dark ? "#FFB020"                    : "#C4870A",
+  danger:    dark ? "#FF4D4D"                    : "#D93636",
+  purple:    dark ? "#A855F7"                    : "#7C3AED",
+  gridLine:  dark ? "rgba(255,255,255,0.045)"    : "rgba(10,22,40,0.06)",
+  chartText: dark ? "#4A6080"                    : "#8FA3BF",
+  shadow:    dark ? "0 4px 28px rgba(0,0,0,.45)": "0 4px 24px rgba(10,22,40,.08)",
+  popShadow: dark ? "0 16px 48px rgba(0,0,0,.7)": "0 16px 48px rgba(10,22,40,.18)",
+});
 
-const RISK_FACTORS = [
-  { label:"Staff Absenteeism",   pct:40, delta:"+12%", color:"#FF4D4D" },
-  { label:"Emergency Case Load", pct:35, delta:"+8%",  color:"#FFB020" },
-  { label:"Drug Shortages",      pct:25, delta:"+5%",  color:"#A855F7" },
-  { label:"Bed Occupancy",       pct:20, delta:"+3%",  color:"#00AEEF" },
-  { label:"Treatment Delays",    pct:18, delta:"-2%",  color:"#F97316" },
-  { label:"ICU Pressure",        pct:15, delta:"+4%",  color:"#00C48C" },
-];
-
-// ── Full 48-KPI dataset across 9 categories ──────────────────
-const KPI_CATEGORIES = [
-  {
-    id:"patient_flow", label:"Patient Flow", color:"#00AEEF", icon:"👥",
-    kpis:[
-      { key:"total_patients_today", label:"Total Patients Today",  value:312, unit:"",   warn:350,  crit:400,  fmt:"num" },
-      { key:"outpatient_visits",    label:"Outpatient Visits",     value:198, unit:"",   warn:220,  crit:260,  fmt:"num" },
-      { key:"emergency_visits",     label:"Emergency Visits",      value:42,  unit:"",   warn:40,   crit:55,   fmt:"num", hiWarn:true },
-      { key:"admissions",           label:"Admissions",            value:28,  unit:"",   warn:35,   crit:45,   fmt:"num" },
-      { key:"discharges",           label:"Discharges",            value:22,  unit:"",   warn:15,   crit:10,   fmt:"num", loWarn:true },
-      { key:"referrals_in",         label:"Referrals In",          value:11,  unit:"",   warn:15,   crit:20,   fmt:"num" },
-      { key:"referrals_out",        label:"Referrals Out",         value:7,   unit:"",   warn:10,   crit:15,   fmt:"num" },
-    ],
-  },
-  {
-    id:"critical_care", label:"Critical Care", color:"#FF4D4D", icon:"🚨",
-    kpis:[
-      { key:"critical_cases",        label:"Critical Cases",         value:14, unit:"",  warn:12, crit:18,  fmt:"num", hiWarn:true },
-      { key:"icu_patients",          label:"ICU Patients",           value:11, unit:"",  warn:10, crit:13,  fmt:"num", hiWarn:true },
-      { key:"maternal_emergencies",  label:"Maternal Emergencies",   value:3,  unit:"",  warn:3,  crit:5,   fmt:"num", hiWarn:true },
-      { key:"neonatal_cases",        label:"Neonatal Cases",         value:5,  unit:"",  warn:6,  crit:9,   fmt:"num", hiWarn:true },
-      { key:"infectious_cases",      label:"Infectious Cases",       value:8,  unit:"",  warn:10, crit:15,  fmt:"num", hiWarn:true },
-    ],
-  },
-  {
-    id:"staffing", label:"Staffing", color:"#A855F7", icon:"🧑‍⚕️",
-    kpis:[
-      { key:"nurses_on_duty",           label:"Nurses on Duty",            value:24, unit:"",  warn:20, crit:15, fmt:"num", loWarn:true },
-      { key:"doctors_on_duty",          label:"Doctors on Duty",           value:8,  unit:"",  warn:6,  crit:4,  fmt:"num", loWarn:true },
-      { key:"clinical_officers",        label:"Clinical Officers",          value:6,  unit:"",  warn:5,  crit:3,  fmt:"num", loWarn:true },
-      { key:"lab_technicians",          label:"Lab Technicians",           value:4,  unit:"",  warn:3,  crit:2,  fmt:"num", loWarn:true },
-      { key:"radiographers",            label:"Radiographers",             value:2,  unit:"",  warn:2,  crit:1,  fmt:"num", loWarn:true },
-      { key:"support_staff",            label:"Support Staff on Duty",     value:12, unit:"",  warn:10, crit:7,  fmt:"num", loWarn:true },
-      { key:"absent_staff",             label:"Absent Staff",              value:9,  unit:"",  warn:6,  crit:10, fmt:"num", hiWarn:true },
-    ],
-  },
-  {
-    id:"bed_management", label:"Bed Management", color:"#00C48C", icon:"🛏️",
-    kpis:[
-      { key:"total_beds",        label:"Total Beds",          value:120, unit:"",  warn:0,  crit:0,  fmt:"num" },
-      { key:"occupied_beds",     label:"Occupied Beds",       value:107, unit:"",  warn:96, crit:108, fmt:"num", hiWarn:true },
-      { key:"available_beds",    label:"Available Beds",      value:13,  unit:"",  warn:18, crit:10,  fmt:"num", loWarn:true },
-      { key:"icu_beds",          label:"ICU Beds Total",      value:14,  unit:"",  warn:0,  crit:0,  fmt:"num" },
-      { key:"icu_occupied",      label:"ICU Beds Occupied",   value:11,  unit:"",  warn:11, crit:13,  fmt:"num", hiWarn:true },
-      { key:"bed_occupancy_rate",label:"Bed Occupancy Rate",  value:89,  unit:"%", warn:80, crit:90,  fmt:"pct", hiWarn:true },
-    ],
-  },
-  {
-    id:"resources", label:"Resource Availability", color:"#F97316", icon:"💊",
-    kpis:[
-      { key:"drug_stock_alerts",    label:"Drug Stock Alerts",       value:4,  unit:"",  warn:3,  crit:6,   fmt:"num", hiWarn:true },
-      { key:"oxygen_supply_level",  label:"Oxygen Supply Level",     value:61, unit:"%", warn:65, crit:45,  fmt:"pct", loWarn:true },
-      { key:"blood_units_available",label:"Blood Units Available",   value:18, unit:"",  warn:15, crit:10,  fmt:"num", loWarn:true },
-      { key:"pcr_test_kits",        label:"PCR Test Kits",           value:140,unit:"",  warn:100,crit:60,  fmt:"num", loWarn:true },
-      { key:"rapid_test_kits",      label:"Rapid Test Kits",         value:95, unit:"",  warn:80, crit:50,  fmt:"num", loWarn:true },
-    ],
-  },
-  {
-    id:"equipment", label:"Equipment Status", color:"#FFB020", icon:"🔧",
-    kpis:[
-      { key:"xray_machine",         label:"X-Ray Machine",           value:1,  unit:"", warn:1,  crit:0,  fmt:"status", loWarn:true },
-      { key:"ultrasound",           label:"Ultrasound Unit",         value:1,  unit:"", warn:1,  crit:0,  fmt:"status", loWarn:true },
-      { key:"ventilators_available",label:"Ventilators Available",   value:4,  unit:"", warn:3,  crit:2,  fmt:"num",    loWarn:true },
-      { key:"functional_monitors",  label:"Functional Monitors",     value:9,  unit:"", warn:8,  crit:6,  fmt:"num",    loWarn:true },
-      { key:"functional_ambulances",label:"Functional Ambulances",   value:2,  unit:"", warn:2,  crit:1,  fmt:"num",    loWarn:true },
-    ],
-  },
-  {
-    id:"operations", label:"Operations", color:"#00AEEF", icon:"⏱️",
-    kpis:[
-      { key:"avg_wait_time",      label:"Avg Patient Wait Time",    value:38,  unit:" min", warn:30, crit:45, fmt:"num", hiWarn:true },
-      { key:"triage_time",        label:"Triage Time",              value:12,  unit:" min", warn:10, crit:15, fmt:"num", hiWarn:true },
-      { key:"lab_turnaround",     label:"Lab Result Turnaround",    value:95,  unit:" min", warn:90, crit:120,fmt:"num", hiWarn:true },
-      { key:"surgery_count",      label:"Surgeries Today",          value:6,   unit:"",     warn:0,  crit:0,  fmt:"num" },
-      { key:"deliveries_today",   label:"Deliveries Today",         value:4,   unit:"",     warn:0,  crit:0,  fmt:"num" },
-      { key:"treatment_delays",   label:"Treatment Delays",         value:11,  unit:"",     warn:8,  crit:14, fmt:"num", hiWarn:true },
-    ],
-  },
-  {
-    id:"infection", label:"Infection Control", color:"#FF4D4D", icon:"🦠",
-    kpis:[
-      { key:"hospital_acquired",    label:"Hospital-Acquired Infections", value:2,  unit:"", warn:2, crit:4,  fmt:"num", hiWarn:true },
-      { key:"covid_cases",          label:"COVID-19 Cases",               value:5,  unit:"", warn:5, crit:10, fmt:"num", hiWarn:true },
-      { key:"tb_cases",             label:"TB Cases",                     value:3,  unit:"", warn:4, crit:7,  fmt:"num", hiWarn:true },
-      { key:"isolation_beds",       label:"Isolation Beds Available",     value:6,  unit:"", warn:4, crit:2,  fmt:"num", loWarn:true },
-    ],
-  },
-  {
-    id:"compliance", label:"Reporting Compliance", color:"#00C48C", icon:"📋",
-    kpis:[
-      { key:"report_submitted_time", label:"Report Submitted",        value:1,   unit:"", warn:1, crit:0, fmt:"status", loWarn:true },
-      { key:"report_delay_minutes",  label:"Report Delay",            value:12,  unit:" min", warn:15, crit:30, fmt:"num", hiWarn:true },
-      { key:"data_validation_errors",label:"Data Validation Errors",  value:2,   unit:"", warn:3, crit:5,  fmt:"num", hiWarn:true },
-    ],
-  },
-];
-
-const ALERTS = [
-  { id:1, clinic:"City Clinic",   score:0.82, level:"critical", issues:["Staff Absenteeism 40%","Emergency Case Overload","Drug Shortage"],      actions:["Deploy float pool staff immediately","Activate emergency protocols","Escalate to CNO & Medical Director","Place urgent pharmacy resupply order"] },
-  { id:2, clinic:"Ridge Clinic",  score:0.74, level:"high",     issues:["ICU at 100% capacity","Nurse Shortage — 6 absent"],                     actions:["Restrict elective admissions","Transfer ICU patients if stable","Request inter-facility nurse support"] },
-  { id:3, clinic:"Town Clinic",   score:0.63, level:"high",     issues:["Bed Occupancy 88%","Treatment Delays avg 45 min"],                      actions:["Expedite discharge planning","Increase triage staffing on next shift"] },
-  { id:4, clinic:"Harbor Clinic", score:0.55, level:"warning",  issues:["Oxygen cylinders < 20% stock","Staff overtime exceeding 60 hrs"],       actions:["Emergency O₂ resupply order","Review overtime rosters","Authorize additional shift cover"] },
-];
-
-const REPORTS = [
-  { id:1, title:"Biweekly Summary Report",  date:"Apr 1, 2026",  type:"summary", size:"2.4 MB" },
-  { id:2, title:"Daily Risk Report",         date:"Apr 1, 2026",  type:"daily",   size:"840 KB" },
-  { id:3, title:"March 31 Report",           date:"Mar 31, 2026", type:"daily",   size:"820 KB" },
-  { id:4, title:"Weekly Analytics",          date:"Mar 30, 2026", type:"weekly",  size:"3.1 MB" },
-  { id:5, title:"March Monthly Report",      date:"Mar 28, 2026", type:"monthly", size:"5.6 MB" },
-];
-
-const MOCK_NOTIFS = [
-  { id:1, type:"danger",  title:"City Clinic — Critical",   body:"Risk score 0.82. Immediate action required.",  time:"8m ago",    read:false },
-  { id:2, type:"warning", title:"Ridge Clinic — High Risk", body:"ICU at capacity & nurse shortage.",            time:"34m ago",   read:false },
-  { id:3, type:"info",    title:"Valley Clinic Improving",  body:"Risk dropped from 0.44 → 0.31.",              time:"2h ago",    read:true  },
-  { id:4, type:"success", title:"Harbor Clinic Report",     body:"Daily KPI submitted on time.",                 time:"Yesterday", read:true  },
-];
-
-const SYSTEM_RESOURCES = [
-  { label:"Bed Occupancy",      value:89, warning:75, critical:88 },
-  { label:"ICU Capacity",       value:82, warning:70, critical:85 },
-  { label:"Staff Availability", value:60, warning:70, critical:55, invert:true },
-  { label:"Drug Inventory",     value:61, warning:65, critical:40, invert:true },
-  { label:"Oxygen Supply",      value:74, warning:65, critical:45, invert:true },
-];
-
-/* ═══════════════════════════════════════════════════════════════
-   HELPERS
-═══════════════════════════════════════════════════════════════ */
+// FIX 1: scores from backend are 0-1 floats, not 0-100 integers
 const riskScore = (score) => ({
-  color:  score>=0.75 ? "#FF4D4D" : score>=0.50 ? "#FFB020" : score>=0.30 ? "#FFB020" : "#00C48C",
-  darkC:  score>=0.75 ? "#D93636" : score>=0.50 ? "#C4870A" : score>=0.30 ? "#C4870A" : "#009E72",
-  label:  score>=0.75 ? "Critical" : score>=0.50 ? "High Risk" : score>=0.30 ? "Moderate" : "Stable",
-  bg:     score>=0.75 ? "rgba(255,77,77,0.10)" : score>=0.50 ? "rgba(255,176,32,0.10)" : score>=0.30 ? "rgba(255,176,32,0.08)" : "rgba(0,196,140,0.10)",
-  bd:     score>=0.75 ? "rgba(255,77,77,0.35)" : score>=0.50 ? "rgba(255,176,32,0.35)" : score>=0.30 ? "rgba(255,176,32,0.28)" : "rgba(0,196,140,0.35)",
+  color: score >= 0.75 ? "#FF4D4D" : score >= 0.50 ? "#FFB020" : score >= 0.30 ? "#FFB020" : "#00C48C",
+  label: score >= 0.75 ? "Critical" : score >= 0.50 ? "High Risk" : score >= 0.30 ? "Moderate" : "Stable",
+  bg:    score >= 0.75 ? "rgba(255,77,77,0.10)"  : score >= 0.50 ? "rgba(255,176,32,0.10)" : score >= 0.30 ? "rgba(255,176,32,0.08)" : "rgba(0,196,140,0.10)",
+  bd:    score >= 0.75 ? "rgba(255,77,77,0.35)"  : score >= 0.50 ? "rgba(255,176,32,0.35)" : score >= 0.30 ? "rgba(255,176,32,0.28)" : "rgba(0,196,140,0.35)",
 });
 
 const resourceColor = (value, warning, critical, invert) => {
@@ -226,9 +83,6 @@ function useOutsideClick(ref, fn) {
   }, [ref, fn]);
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   SVG ICON SYSTEM
-═══════════════════════════════════════════════════════════════ */
 const Ico = ({ d, size=16, color="currentColor", stroke=2 }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
     stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
@@ -251,7 +105,6 @@ const IC = {
   filter:    "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
   calendar:  "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z",
   user:      "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z",
-  menu:      "M3 12h18M3 6h18M3 18h18",
   chevL:     "M15 18l-6-6 6-6",
   chevR:     "M9 18l6-6-6-6",
   info:      "M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 16v-4M12 8h.01",
@@ -259,23 +112,28 @@ const IC = {
   trend:     "M23 6l-9.5 9.5-5-5L1 18",
 };
 
-/* ═══════════════════════════════════════════════════════════════
-   TOAST
-═══════════════════════════════════════════════════════════════ */
 function Toast({ toast }) {
   if (!toast) return null;
   const bg = { success:"#00C48C", error:"#FF4D4D", info:"#00AEEF", warning:"#FFB020" }[toast.type] || "#00AEEF";
   return (
     <div style={{ position:"fixed", top:20, right:24, zIndex:9999, background:bg, color:"#fff", borderRadius:12, padding:"13px 20px", fontSize:13, fontWeight:700, fontFamily:"'Syne',sans-serif", boxShadow:"0 8px 32px rgba(0,0,0,.35)", display:"flex", alignItems:"center", gap:10, animation:"slideIn .3s ease both", maxWidth:360 }}>
-      <Ico d={toast.type === "error" ? IC.alerts : IC.check} size={16} color="#fff"/>
+      <Ico d={toast.type==="error"?IC.alerts:IC.check} size={16} color="#fff"/>
       {toast.msg}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CARD WRAPPER
-═══════════════════════════════════════════════════════════════ */
+function EmptyState({ t, loading, label }) {
+  return (
+    <div style={{ padding:"32px", textAlign:"center", color:t.textSub, fontSize:13 }}>
+      {loading
+        ? <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, color:t.accent }}>Loading…</div>
+        : <div style={{ color:t.textMt }}>{label || "No data available."}</div>
+      }
+    </div>
+  );
+}
+
 function Card({ t, title, sub, icon, iconColor, action, children, style={} }) {
   const ic = iconColor || t.accent;
   return (
@@ -301,9 +159,6 @@ function Card({ t, title, sub, icon, iconColor, action, children, style={} }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   NOTIFICATION PANEL
-═══════════════════════════════════════════════════════════════ */
 function NotifPanel({ t, notifs, setNotifs, onClose }) {
   const ref = useRef();
   useOutsideClick(ref, onClose);
@@ -318,12 +173,13 @@ function NotifPanel({ t, notifs, setNotifs, onClose }) {
         </div>
         <button onClick={() => setNotifs(n => n.map(x => ({ ...x, read:true })))} style={{ fontSize:11, color:t.accent, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>Mark all read</button>
       </div>
-      <div style={{ maxHeight:300, overflowY:"auto" }}>
+      <div style={{ maxHeight:320, overflowY:"auto" }}>
+        {notifs.length === 0 && <div style={{ padding:"20px", textAlign:"center", fontSize:12, color:t.textMt }}>No notifications</div>}
         {notifs.map(n => (
-          <div key={n.id} onClick={() => setNotifs(p => p.map(x => x.id===n.id ? {...x,read:true} : x))}
-            style={{ display:"flex", gap:12, padding:"12px 16px", borderBottom:`1px solid ${t.border}`, cursor:"pointer", background:n.read?"transparent":t.accentGl, transition:"background .15s" }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:`${tc[n.type]}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-              <Ico d={n.type==="success"?IC.check:IC.alerts} size={14} color={tc[n.type]}/>
+          <div key={n.id} onClick={() => setNotifs(p => p.map(x => x.id===n.id?{...x,read:true}:x))}
+            style={{ display:"flex", gap:12, padding:"12px 16px", borderBottom:`1px solid ${t.border}`, cursor:"pointer", background:n.read?"transparent":t.accentGl }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:`${tc[n.type]||t.accent}18`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              <Ico d={n.type==="success"?IC.check:IC.alerts} size={14} color={tc[n.type]||t.accent}/>
             </div>
             <div style={{ flex:1 }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:2 }}>
@@ -343,9 +199,6 @@ function NotifPanel({ t, notifs, setNotifs, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   SETTINGS PANEL
-═══════════════════════════════════════════════════════════════ */
 function SettingsPanel({ t, dark, setDark, onClose }) {
   const ref = useRef();
   useOutsideClick(ref, onClose);
@@ -395,18 +248,16 @@ function SettingsPanel({ t, dark, setDark, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   PROFILE PANEL
-═══════════════════════════════════════════════════════════════ */
-function ProfilePanel({ t, onClose }) {
+function ProfilePanel({ t, profile, onClose }) {
   const ref = useRef();
   useOutsideClick(ref, onClose);
+  const initial = profile?.name ? profile.name[0].toUpperCase() : "C";
   return (
     <div ref={ref} style={{ position:"absolute", top:"calc(100% + 10px)", right:0, width:250, background:t.popBg, border:`1px solid ${t.borderSt}`, borderRadius:16, boxShadow:t.popShadow, zIndex:600, overflow:"hidden", animation:"dropIn .2s ease both" }}>
       <div style={{ padding:"18px 16px", background:`linear-gradient(135deg,${t.accent}22,${t.accentDk}11)`, borderBottom:`1px solid ${t.border}`, textAlign:"center" }}>
-        <div style={{ width:54, height:54, borderRadius:"50%", background:`linear-gradient(135deg,${t.accent},${t.accentDk})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px", fontSize:22, fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:`0 6px 20px ${t.accent}44` }}>C</div>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:t.text }}>Chief Nursing Officer</div>
-        <div style={{ fontSize:11, color:t.textSub, marginTop:2 }}>cno@hospital.gov</div>
+        <div style={{ width:54, height:54, borderRadius:"50%", background:`linear-gradient(135deg,${t.accent},${t.accentDk})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px", fontSize:22, fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:`0 6px 20px ${t.accent}44` }}>{initial}</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:14, color:t.text }}>{profile?.name || "Chief Nursing Officer"}</div>
+        <div style={{ fontSize:11, color:t.textSub, marginTop:2 }}>{profile?.email || ""}</div>
         <div style={{ marginTop:10, display:"inline-flex", alignItems:"center", gap:5, background:`${t.success}18`, border:`1px solid ${t.success}44`, borderRadius:20, padding:"3px 10px" }}>
           <span style={{ width:6, height:6, borderRadius:"50%", background:t.success, display:"inline-block" }}/>
           <span style={{ fontSize:10, color:t.success, fontWeight:700 }}>Active Session</span>
@@ -414,8 +265,8 @@ function ProfilePanel({ t, onClose }) {
       </div>
       <div style={{ padding:"10px 10px 6px" }}>
         {[
-          { icon:IC.user,     label:"My Profile",  color:t.accent   },
-          { icon:IC.reports,  label:"My Reports",  color:t.success  },
+          { icon:IC.user,     label:"My Profile",   color:t.accent  },
+          { icon:IC.reports,  label:"My Reports",   color:t.success },
           { icon:IC.activity, label:"Activity Log", color:t.warning },
           { icon:IC.settings, label:"Preferences",  color:t.purple  },
         ].map(item => (
@@ -438,208 +289,69 @@ function ProfilePanel({ t, onClose }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   SIDEBAR  
-═══════════════════════════════════════════════════════════════ */
-const NAV_ITEMS = [
-  { label:"Dashboard",    icon:IC.dashboard },
-  { label:"Risk Heatmap", icon:IC.heatmap,  badge: ALERTS.filter(a=>a.level==="critical").length },
-  { label:"Alerts",       icon:IC.alerts,   badge: ALERTS.length },
-  { label:"Reports",      icon:IC.reports   },
-];
-
-function Sidebar({ t, active, setActive, collapsed, setCollapsed, dark, setDark, onLogout }) {
+function Sidebar({ t, active, setActive, collapsed, setCollapsed, dark, setDark, onLogout, alertCount }) {
   const W = collapsed ? 60 : 220;
-
-  /* Icon slot — always 36×36, centred icon inside */
+  const NAV_ITEMS = [
+    { label:"Dashboard",    icon:IC.dashboard },
+    { label:"Risk Heatmap", icon:IC.heatmap,  badge: alertCount.critical },
+    { label:"Alerts",       icon:IC.alerts,   badge: alertCount.total    },
+    { label:"Reports",      icon:IC.reports                              },
+  ];
   const IconSlot = ({ d, color }) => (
-    <span style={{
-      display:"flex", alignItems:"center", justifyContent:"center",
-      width:36, height:36, flexShrink:0, borderRadius:9,
-    }}>
+    <span style={{ display:"flex", alignItems:"center", justifyContent:"center", width:36, height:36, flexShrink:0, borderRadius:9 }}>
       <Ico d={d} size={18} color={color}/>
     </span>
   );
-
-  /* Standard nav row */
   const NavBtn = ({ item }) => {
     const isAct = active === item.label;
-    const ic    = isAct ? t.accent : t.textSub;
+    const ic = isAct ? t.accent : t.textSub;
     return (
-      <button
-        onClick={() => setActive(item.label)}
-        title={item.label}
-        style={{
-          display:"flex", alignItems:"center",
-          gap:0,                          // gap handled by fixed icon slot width
-          width:"100%", padding:"2px 0",
-          background: isAct ? `${t.accent}15` : "transparent",
-          border:"none",
-          borderLeft: isAct ? `3px solid ${t.accent}` : "3px solid transparent",
-          borderRadius:"0 10px 10px 0",
-          cursor:"pointer", outline:"none",
-          transition:"background .15s",
-          overflow:"hidden",
-        }}
-        onMouseEnter={e => { if (!isAct) e.currentTarget.style.background = `${t.accent}08`; }}
-        onMouseLeave={e => { if (!isAct) e.currentTarget.style.background = "transparent"; }}
-      >
+      <button onClick={() => setActive(item.label)} title={item.label}
+        style={{ display:"flex", alignItems:"center", gap:0, width:"100%", padding:"2px 0", background:isAct?`${t.accent}15`:"transparent", border:"none", borderLeft:isAct?`3px solid ${t.accent}`:"3px solid transparent", borderRadius:"0 10px 10px 0", cursor:"pointer", outline:"none", transition:"background .15s", overflow:"hidden" }}
+        onMouseEnter={e => { if(!isAct) e.currentTarget.style.background=`${t.accent}08`; }}
+        onMouseLeave={e => { if(!isAct) e.currentTarget.style.background="transparent"; }}>
         <IconSlot d={item.icon} color={ic}/>
         {!collapsed && (
           <>
-            <span style={{ flex:1, fontSize:13, fontWeight: isAct ? 700 : 400, color:ic, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
-              {item.label}
-            </span>
-            {item.badge > 0 && (
-              <span style={{ background:t.danger, color:"#fff", borderRadius:20, padding:"1px 8px", fontSize:10, fontWeight:700, fontFamily:"'Syne',sans-serif", marginRight:8, flexShrink:0 }}>
-                {item.badge}
-              </span>
-            )}
+            <span style={{ flex:1, fontSize:13, fontWeight:isAct?700:400, color:ic, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>{item.label}</span>
+            {item.badge > 0 && <span style={{ background:t.danger, color:"#fff", borderRadius:20, padding:"1px 8px", fontSize:10, fontWeight:700, fontFamily:"'Syne',sans-serif", marginRight:8, flexShrink:0 }}>{item.badge}</span>}
           </>
-        )}
-        {collapsed && item.badge > 0 && (
-          <span style={{ position:"absolute", top:6, right:6, width:7, height:7, borderRadius:"50%", background:t.danger, border:`1.5px solid ${t.sidebarBg}` }}/>
         )}
       </button>
     );
   };
-
-  /* Utility row (theme / logout / status) */
-  const UtilBtn = ({ d, label, color, onClick, danger, bgOverride }) => (
-    <button
-      onClick={onClick}
-      title={label}
-      style={{
-        display:"flex", alignItems:"center",
-        gap:0,
-        width:"100%", padding:"2px 0",
-        background: bgOverride || (danger ? `${t.danger}09` : "transparent"),
-        border: danger ? `1px solid ${t.danger}25` : "none",
-        borderRadius:10,
-        cursor:"pointer", outline:"none",
-        transition:"background .15s",
-        overflow:"hidden",
-      }}
-      onMouseEnter={e => { e.currentTarget.style.background = danger ? `${t.danger}18` : `${t.accent}09`; }}
-      onMouseLeave={e => { e.currentTarget.style.background = bgOverride || (danger ? `${t.danger}09` : "transparent"); }}
-    >
+  const UtilBtn = ({ d, label, color, onClick, danger }) => (
+    <button onClick={onClick} title={label}
+      style={{ display:"flex", alignItems:"center", gap:0, width:"100%", padding:"2px 0", background:danger?`${t.danger}09`:"transparent", border:danger?`1px solid ${t.danger}25`:"none", borderRadius:10, cursor:"pointer", outline:"none", transition:"background .15s", overflow:"hidden" }}
+      onMouseEnter={e => { e.currentTarget.style.background=danger?`${t.danger}18`:`${t.accent}09`; }}
+      onMouseLeave={e => { e.currentTarget.style.background=danger?`${t.danger}09`:"transparent"; }}>
       <IconSlot d={d} color={color}/>
-      {!collapsed && (
-        <span style={{ flex:1, fontSize:12, fontWeight: danger ? 700 : 500, color, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>
-          {label}
-        </span>
-      )}
+      {!collapsed && <span style={{ flex:1, fontSize:12, fontWeight:danger?700:500, color, fontFamily:"'DM Sans',sans-serif", whiteSpace:"nowrap" }}>{label}</span>}
     </button>
   );
-
   return (
-    <aside style={{
-      width: W, minWidth: W, flexShrink:0,
-      background: t.sidebarBg,
-      borderRight:`1px solid ${t.border}`,
-      display:"flex", flexDirection:"column",
-      padding:"14px 0",
-      transition:"width .25s cubic-bezier(.4,0,.2,1), min-width .25s cubic-bezier(.4,0,.2,1)",
-      overflowX:"hidden",
-      boxShadow: t.shadow,
-      position:"relative", zIndex:50,
-    }}>
-
-      {/* ── Logo ── */}
-      <div style={{ display:"flex", alignItems:"center", gap:0, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${t.border}`, paddingLeft:0 }}>
-        {/* Logo uses the same 36px icon slot so it aligns with nav icons */}
+    <aside style={{ width:W, minWidth:W, flexShrink:0, background:t.sidebarBg, borderRight:`1px solid ${t.border}`, display:"flex", flexDirection:"column", padding:"14px 0", transition:"width .25s cubic-bezier(.4,0,.2,1), min-width .25s cubic-bezier(.4,0,.2,1)", overflowX:"hidden", boxShadow:t.shadow, position:"relative", zIndex:50 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:0, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${t.border}` }}>
         <span style={{ display:"flex", alignItems:"center", justifyContent:"center", width:60, height:36, flexShrink:0 }}>
-            <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 1500 1500"
-    preserveAspectRatio="xMidYMid meet"
-    style={{ display: "block" }}
-  >
-    <defs>
-      <clipPath id="cims_clip_1">
-        <path d="M 185.167969 225 L 677 225 L 677 1268 L 185.167969 1268 Z" />
-      </clipPath>
-      <clipPath id="cims_clip_2">
-        <path d="M 536.332031 571 L 898.582031 571 L 898.582031 932.957031 L 536.332031 932.957031 Z" />
-      </clipPath>
-      <clipPath id="cims_clip_3">
-        <path d="M 536.332031 559.457031 L 898.582031 559.457031 L 898.582031 922 L 536.332031 922 Z" />
-      </clipPath>
-    </defs>
-
-    <g clipPath="url(#cims_clip_1)">
-      <path
-        fill="#0097b2"
-        d="M 550.917969 714.304688 L 676.46875 786.933594 L 676.46875 289.117188 L 565.734375 225.121094 L 450.117188 291.722656 L 450.117188 425.90625 L 418.851562 443.984375 L 418.851562 309.796875 L 316.910156 368.75 L 316.910156 510.585938 L 434.808594 578.492188 L 550.589844 511.5625 L 550.589844 386.171875 L 581.859375 368.097656 L 581.859375 529.636719 L 450.117188 605.6875 L 450.117188 739.058594 L 418.851562 757.132812 L 418.851562 605.523438 L 303.71875 538.921875 L 185.167969 607.316406 L 185.167969 722.285156 L 316.910156 646.234375 L 316.910156 682.386719 L 185.167969 758.433594 L 185.167969 888.058594 L 303.71875 956.453125 L 401.589844 899.945312 L 308.765625 846.207031 L 308.765625 810.21875 L 581.859375 967.851562 L 581.859375 1153.820312 L 550.589844 1135.746094 L 550.589844 985.929688 L 432.855469 918.023438 L 316.910156 984.953125 L 316.910156 1122.394531 L 418.851562 1181.179688 L 418.851562 1027.292969 L 450.117188 1045.367188 L 450.117188 1199.253906 L 568.503906 1267.648438 L 676.46875 1205.28125 L 676.46875 823.085938 L 550.917969 750.457031 Z"
-        fillRule="evenodd"
-      />
-    </g>
-
-    <path
-      fill="#000"
-      d="M 708.714844 327.875 L 708.714844 1201.859375 L 740.792969 1220.585938 L 790.949219 1249.410156 C 782.808594 1277.746094 794.695312 1309.175781 821.402344 1324.484375 C 852.992188 1342.722656 893.214844 1331.972656 911.453125 1300.382812 C 929.53125 1268.953125 918.78125 1228.566406 887.355469 1210.328125 C 860.648438 1195.019531 827.589844 1200.394531 807.070312 1221.566406 L 740.792969 1183.296875 L 740.792969 309.308594 L 807.070312 271.042969 C 827.589844 292.375 860.648438 297.75 887.355469 282.277344 C 918.78125 264.039062 929.53125 223.816406 911.453125 192.226562 C 893.214844 160.796875 852.992188 150.046875 821.402344 168.125 C 794.695312 183.59375 782.808594 214.859375 790.949219 243.195312 L 740.792969 272.179688 L 708.714844 290.746094 Z"
-      fillRule="evenodd"
-    />
-
-    <path
-      fill="#000"
-      d="M 854.949219 569.859375 L 775.480469 569.859375 L 775.480469 601.941406 L 868.300781 601.941406 L 900.542969 569.859375 L 939.953125 530.453125 L 1112.40625 530.453125 L 1185.847656 603.894531 C 1170.703125 629.136719 1173.960938 662.519531 1195.78125 684.339844 C 1221.511719 710.070312 1263.363281 710.070312 1289.089844 684.339844 C 1314.820312 658.613281 1314.820312 616.921875 1289.089844 591.195312 C 1267.269531 569.371094 1233.886719 565.953125 1208.644531 581.097656 L 1157.839844 530.453125 L 1125.757812 498.210938 L 926.597656 498.210938 L 894.519531 530.453125 Z"
-      fillRule="evenodd"
-    />
-
-    <path
-      fill="#0097b2"
-      d="M 775.480469 438.933594 L 818.144531 438.933594 L 850.226562 406.855469 L 888.167969 368.910156 L 939.464844 368.910156 C 946.792969 397.570312 972.683594 418.742188 1003.460938 418.742188 C 1039.777344 418.742188 1069.414062 389.265625 1069.414062 352.789062 C 1069.414062 316.476562 1039.777344 287 1003.460938 287 C 972.683594 287 946.792969 308.171875 939.464844 336.667969 L 874.816406 336.667969 L 842.570312 368.910156 L 804.792969 406.855469 L 775.480469 406.855469 Z"
-      fillRule="evenodd"
-    />
-
-    <path
-      fill="#000"
-      d="M 822.867188 890.664062 L 775.480469 890.664062 L 775.480469 922.90625 L 854.949219 922.90625 L 894.519531 962.316406 L 926.597656 994.398438 L 1125.757812 994.398438 L 1157.839844 962.316406 L 1208.644531 911.507812 C 1233.886719 926.652344 1267.269531 923.398438 1289.089844 901.574219 C 1314.820312 875.847656 1314.820312 834.15625 1289.089844 808.429688 C 1263.363281 782.699219 1221.511719 782.699219 1195.78125 808.429688 C 1173.960938 830.25 1170.703125 863.46875 1185.847656 888.710938 L 1112.40625 962.316406 L 939.953125 962.316406 L 868.300781 890.664062 Z"
-      fillRule="evenodd"
-    />
-
-    <path
-      fill="#0097b2"
-      d="M 775.480469 762.507812 L 997.273438 762.507812 C 1004.4375 791.003906 1030.332031 812.175781 1061.109375 812.175781 C 1097.585938 812.175781 1127.0625 782.699219 1127.0625 746.382812 C 1127.0625 709.90625 1097.585938 680.433594 1061.109375 680.433594 C 1030.332031 680.433594 1004.4375 701.601562 997.273438 730.261719 L 775.480469 730.261719 Z"
-      fillRule="evenodd"
-    />
-
-    <path
-      fill="#0097b2"
-      d="M 850.226562 1085.914062 L 818.144531 1053.671875 L 775.480469 1053.671875 L 775.480469 1085.914062 L 804.792969 1085.914062 L 842.570312 1123.695312 L 874.816406 1155.9375 L 939.464844 1155.9375 C 946.792969 1184.597656 972.683594 1205.769531 1003.460938 1205.769531 C 1039.777344 1205.769531 1069.414062 1176.292969 1069.414062 1139.816406 C 1069.414062 1103.503906 1039.777344 1074.027344 1003.460938 1074.027344 C 972.683594 1074.027344 946.792969 1095.199219 939.464844 1123.695312 L 888.167969 1123.695312 Z"
-      fillRule="evenodd"
-    />
-
-    <g clipPath="url(#cims_clip_2)">
-      <path
-        fill="#0097b2"
-        d="M 898.507812 752.183594 C 898.507812 652.328125 817.273438 571.09375 717.421875 571.09375 C 617.566406 571.09375 536.332031 652.328125 536.332031 752.183594 C 536.332031 852.039062 617.566406 933.269531 717.421875 933.269531 C 817.273438 933.269531 898.507812 852.035156 898.507812 752.183594 Z"
-      />
-    </g>
-
-    <g clipPath="url(#cims_clip_3)">
-      <path
-        fill="#000"
-        d="M 898.507812 740.59375 C 898.507812 640.738281 817.273438 559.503906 717.421875 559.503906 C 617.566406 559.503906 536.332031 640.738281 536.332031 740.59375 C 536.332031 840.445312 617.566406 921.679688 717.421875 921.679688 C 817.273438 921.679688 898.507812 840.445312 898.507812 740.59375 Z"
-      />
-    </g>
-
-    <path
-      fill="#0097b2"
-      d="M 717.421875 904.296875 C 627.160156 904.296875 553.722656 830.859375 553.722656 740.59375 C 553.722656 650.332031 627.160156 576.894531 717.421875 576.894531 C 807.6875 576.894531 881.125 650.332031 881.125 740.59375 C 881.125 830.859375 807.6875 904.296875 717.421875 904.296875 Z"
-    />
-
-    <path
-      fill="#0097b2"
-      d="M 717.421875 610.175781 C 645.398438 610.175781 587.007812 668.566406 587.007812 740.597656 C 587.007812 812.625 645.398438 871.015625 717.421875 871.015625 C 789.453125 871.015625 847.839844 812.625 847.839844 740.597656 C 847.839844 668.566406 789.453125 610.175781 717.421875 610.175781 Z"
-    />
-
-    <path
-      fill="#0097b2"
-      d="M 795.019531 759.742188 C 795.019531 764.140625 791.453125 767.707031 787.054688 767.707031 L 744.535156 767.707031 L 744.535156 810.226562 C 744.535156 814.625 740.96875 818.191406 736.570312 818.191406 L 698.273438 818.191406 C 693.878906 818.191406 690.3125 814.625 690.3125 810.226562 L 690.3125 767.707031 L 647.792969 767.707031 C 643.394531 767.707031 639.828125 764.140625 639.828125 759.742188 L 639.828125 721.449219 C 639.828125 717.050781 643.394531 713.484375 647.792969 713.484375 L 690.3125 713.484375 L 690.3125 670.964844 C 690.3125 666.566406 693.878906 663 698.273438 663 L 736.570312 663 C 740.96875 663 744.535156 666.566406 744.535156 670.964844 L 744.535156 713.484375 L 787.054688 713.484375 C 791.453125 713.484375 795.019531 717.050781 795.019531 721.449219 Z"
-    />
-  </svg>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 1500" width="36" height="36" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <clipPath id="cc1"><path d="M 185.167969 225 L 677 225 L 677 1268 L 185.167969 1268 Z"/></clipPath>
+              <clipPath id="cc2"><path d="M 536.332031 571 L 898.582031 571 L 898.582031 932.957031 L 536.332031 932.957031 Z"/></clipPath>
+              <clipPath id="cc3"><path d="M 536.332031 559.457031 L 898.582031 559.457031 L 898.582031 922 L 536.332031 922 Z"/></clipPath>
+            </defs>
+            <g clipPath="url(#cc1)"><path fill="#0097b2" d="M 550.917969 714.304688 L 676.46875 786.933594 L 676.46875 289.117188 L 565.734375 225.121094 L 450.117188 291.722656 L 450.117188 425.90625 L 418.851562 443.984375 L 418.851562 309.796875 L 316.910156 368.75 L 316.910156 510.585938 L 434.808594 578.492188 L 550.589844 511.5625 L 550.589844 386.171875 L 581.859375 368.097656 L 581.859375 529.636719 L 450.117188 605.6875 L 450.117188 739.058594 L 418.851562 757.132812 L 418.851562 605.523438 L 303.71875 538.921875 L 185.167969 607.316406 L 185.167969 722.285156 L 316.910156 646.234375 L 316.910156 682.386719 L 185.167969 758.433594 L 185.167969 888.058594 L 303.71875 956.453125 L 401.589844 899.945312 L 308.765625 846.207031 L 308.765625 810.21875 L 581.859375 967.851562 L 581.859375 1153.820312 L 550.589844 1135.746094 L 550.589844 985.929688 L 432.855469 918.023438 L 316.910156 984.953125 L 316.910156 1122.394531 L 418.851562 1181.179688 L 418.851562 1027.292969 L 450.117188 1045.367188 L 450.117188 1199.253906 L 568.503906 1267.648438 L 676.46875 1205.28125 L 676.46875 823.085938 L 550.917969 750.457031 Z" fillRule="evenodd"/></g>
+            <path fill="#000" d="M 708.714844 327.875 L 708.714844 1201.859375 L 740.792969 1220.585938 L 790.949219 1249.410156 C 782.808594 1277.746094 794.695312 1309.175781 821.402344 1324.484375 C 852.992188 1342.722656 893.214844 1331.972656 911.453125 1300.382812 C 929.53125 1268.953125 918.78125 1228.566406 887.355469 1210.328125 C 860.648438 1195.019531 827.589844 1200.394531 807.070312 1221.566406 L 740.792969 1183.296875 L 740.792969 309.308594 L 807.070312 271.042969 C 827.589844 292.375 860.648438 297.75 887.355469 282.277344 C 918.78125 264.039062 929.53125 223.816406 911.453125 192.226562 C 893.214844 160.796875 852.992188 150.046875 821.402344 168.125 C 794.695312 183.59375 782.808594 214.859375 790.949219 243.195312 L 740.792969 272.179688 L 708.714844 290.746094 Z" fillRule="evenodd"/>
+            <path fill="#000" d="M 854.949219 569.859375 L 775.480469 569.859375 L 775.480469 601.941406 L 868.300781 601.941406 L 900.542969 569.859375 L 939.953125 530.453125 L 1112.40625 530.453125 L 1185.847656 603.894531 C 1170.703125 629.136719 1173.960938 662.519531 1195.78125 684.339844 C 1221.511719 710.070312 1263.363281 710.070312 1289.089844 684.339844 C 1314.820312 658.613281 1314.820312 616.921875 1289.089844 591.195312 C 1267.269531 569.371094 1233.886719 565.953125 1208.644531 581.097656 L 1157.839844 530.453125 L 1125.757812 498.210938 L 926.597656 498.210938 L 894.519531 530.453125 Z" fillRule="evenodd"/>
+            <path fill="#0097b2" d="M 775.480469 438.933594 L 818.144531 438.933594 L 850.226562 406.855469 L 888.167969 368.910156 L 939.464844 368.910156 C 946.792969 397.570312 972.683594 418.742188 1003.460938 418.742188 C 1039.777344 418.742188 1069.414062 389.265625 1069.414062 352.789062 C 1069.414062 316.476562 1039.777344 287 1003.460938 287 C 972.683594 287 946.792969 308.171875 939.464844 336.667969 L 874.816406 336.667969 L 842.570312 368.910156 L 804.792969 406.855469 L 775.480469 406.855469 Z" fillRule="evenodd"/>
+            <path fill="#000" d="M 822.867188 890.664062 L 775.480469 890.664062 L 775.480469 922.90625 L 854.949219 922.90625 L 894.519531 962.316406 L 926.597656 994.398438 L 1125.757812 994.398438 L 1157.839844 962.316406 L 1208.644531 911.507812 C 1233.886719 926.652344 1267.269531 923.398438 1289.089844 901.574219 C 1314.820312 875.847656 1314.820312 834.15625 1289.089844 808.429688 C 1263.363281 782.699219 1221.511719 782.699219 1195.78125 808.429688 C 1173.960938 830.25 1170.703125 863.46875 1185.847656 888.710938 L 1112.40625 962.316406 L 939.953125 962.316406 L 868.300781 890.664062 Z" fillRule="evenodd"/>
+            <path fill="#0097b2" d="M 775.480469 762.507812 L 997.273438 762.507812 C 1004.4375 791.003906 1030.332031 812.175781 1061.109375 812.175781 C 1097.585938 812.175781 1127.0625 782.699219 1127.0625 746.382812 C 1127.0625 709.90625 1097.585938 680.433594 1061.109375 680.433594 C 1030.332031 680.433594 1004.4375 701.601562 997.273438 730.261719 L 775.480469 730.261719 Z" fillRule="evenodd"/>
+            <path fill="#0097b2" d="M 850.226562 1085.914062 L 818.144531 1053.671875 L 775.480469 1053.671875 L 775.480469 1085.914062 L 804.792969 1085.914062 L 842.570312 1123.695312 L 874.816406 1155.9375 L 939.464844 1155.9375 C 946.792969 1184.597656 972.683594 1205.769531 1003.460938 1205.769531 C 1039.777344 1205.769531 1069.414062 1176.292969 1069.414062 1139.816406 C 1069.414062 1103.503906 1039.777344 1074.027344 1003.460938 1074.027344 C 972.683594 1074.027344 946.792969 1095.199219 939.464844 1123.695312 L 888.167969 1123.695312 Z" fillRule="evenodd"/>
+            <g clipPath="url(#cc2)"><path fill="#0097b2" d="M 898.507812 752.183594 C 898.507812 652.328125 817.273438 571.09375 717.421875 571.09375 C 617.566406 571.09375 536.332031 652.328125 536.332031 752.183594 C 536.332031 852.039062 617.566406 933.269531 717.421875 933.269531 C 817.273438 933.269531 898.507812 852.035156 898.507812 752.183594 Z"/></g>
+            <g clipPath="url(#cc3)"><path fill="#000" d="M 898.507812 740.59375 C 898.507812 640.738281 817.273438 559.503906 717.421875 559.503906 C 617.566406 559.503906 536.332031 640.738281 536.332031 740.59375 C 536.332031 840.445312 617.566406 921.679688 717.421875 921.679688 C 817.273438 921.679688 898.507812 840.445312 898.507812 740.59375 Z"/></g>
+            <path fill="#0097b2" d="M 717.421875 904.296875 C 627.160156 904.296875 553.722656 830.859375 553.722656 740.59375 C 553.722656 650.332031 627.160156 576.894531 717.421875 576.894531 C 807.6875 576.894531 881.125 650.332031 881.125 740.59375 C 881.125 830.859375 807.6875 904.296875 717.421875 904.296875 Z"/>
+            <path fill="#0097b2" d="M 717.421875 610.175781 C 645.398438 610.175781 587.007812 668.566406 587.007812 740.597656 C 587.007812 812.625 645.398438 871.015625 717.421875 871.015625 C 789.453125 871.015625 847.839844 812.625 847.839844 740.597656 C 847.839844 668.566406 789.453125 610.175781 717.421875 610.175781 Z"/>
+            <path fill="#0097b2" d="M 795.019531 759.742188 C 795.019531 764.140625 791.453125 767.707031 787.054688 767.707031 L 744.535156 767.707031 L 744.535156 810.226562 C 744.535156 814.625 740.96875 818.191406 736.570312 818.191406 L 698.273438 818.191406 C 693.878906 818.191406 690.3125 814.625 690.3125 810.226562 L 690.3125 767.707031 L 647.792969 767.707031 C 643.394531 767.707031 639.828125 764.140625 639.828125 759.742188 L 639.828125 721.449219 C 639.828125 717.050781 643.394531 713.484375 647.792969 713.484375 L 690.3125 713.484375 L 690.3125 670.964844 C 690.3125 666.566406 693.878906 663 698.273438 663 L 736.570312 663 C 740.96875 663 744.535156 666.566406 744.535156 670.964844 L 744.535156 713.484375 L 787.054688 713.484375 C 791.453125 713.484375 795.019531 717.050781 795.019531 721.449219 Z"/>
+          </svg>
         </span>
         {!collapsed && (
           <div>
@@ -648,82 +360,45 @@ function Sidebar({ t, active, setActive, collapsed, setCollapsed, dark, setDark,
           </div>
         )}
       </div>
-
-      {/* ── Collapse toggle ── */}
       <button onClick={() => setCollapsed(c => !c)} style={{ position:"absolute", top:20, right:-11, width:22, height:22, borderRadius:"50%", background:t.sidebarBg, border:`1px solid ${t.border}`, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", zIndex:60, boxShadow:t.shadow, padding:0 }}>
-        <Ico d={collapsed ? IC.chevR : IC.chevL} size={10} color={t.textSub}/>
+        <Ico d={collapsed?IC.chevR:IC.chevL} size={10} color={t.textSub}/>
       </button>
-
-      {/* ── Section label ── */}
-      {!collapsed && (
-        <div style={{ fontSize:9, fontWeight:700, color:t.textMt, letterSpacing:"1.4px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", padding:"0 12px 6px 14px" }}>
-          Navigation
-        </div>
-      )}
-
-      {/* ── Nav items ── */}
+      {!collapsed && <div style={{ fontSize:9, fontWeight:700, color:t.textMt, letterSpacing:"1.4px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", padding:"0 12px 6px 14px" }}>Navigation</div>}
       <nav style={{ display:"flex", flexDirection:"column", gap:2, flex:1, padding:"0 8px 0 0" }}>
         {NAV_ITEMS.map(item => <NavBtn key={item.label} item={item}/>)}
       </nav>
-
-      {/* ── Divider + bottom controls ── */}
       <div style={{ borderTop:`1px solid ${t.border}`, marginTop:12, paddingTop:10, display:"flex", flexDirection:"column", gap:2, padding:"10px 8px 0 0" }}>
-
-        {/* System status row (non-button) */}
         <div style={{ display:"flex", alignItems:"center", gap:0, padding:"2px 0" }}>
           <span style={{ display:"flex", alignItems:"center", justifyContent:"center", width:60, height:32, flexShrink:0 }}>
             <span style={{ width:8, height:8, borderRadius:"50%", background:t.success, display:"inline-block", animation:"pulse 2s ease infinite" }}/>
           </span>
           {!collapsed && <span style={{ fontSize:10, color:t.textMt, fontFamily:"'DM Sans',sans-serif" }}>System Online · Live</span>}
         </div>
-
-        {/* Theme toggle */}
-        <UtilBtn
-          d={dark ? IC.sun : IC.moon}
-          label={dark ? "Light Mode" : "Dark Mode"}
-          color={t.accent}
-          onClick={() => setDark(d => !d)}
-        />
-
-        {/* Logout */}
-        <UtilBtn
-          d={IC.logout}
-          label="Logout"
-          color={t.danger}
-          onClick={onLogout}
-          danger
-        />
+        <UtilBtn d={dark?IC.sun:IC.moon} label={dark?"Light Mode":"Dark Mode"} color={t.accent} onClick={() => setDark(d => !d)}/>
+        <UtilBtn d={IC.logout} label="Logout" color={t.danger} onClick={onLogout} danger/>
       </div>
-
     </aside>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   HEADER
-═══════════════════════════════════════════════════════════════ */
-function Header({ t, dark, setDark, notifs, setNotifs, clinicFilter, setClinicFilter, dateRange, setDateRange }) {
+function Header({ t, dark, setDark, notifs, setNotifs, clinicFilter, setClinicFilter, dateRange, setDateRange, clinics, profile }) {
   const [showNotif,    setShowNotif]    = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile,  setShowProfile]  = useState(false);
   const unread = notifs.filter(n => !n.read).length;
   const closeAll = () => { setShowNotif(false); setShowSettings(false); setShowProfile(false); };
-
+  const initial = profile?.name ? profile.name[0].toUpperCase() : "C";
   return (
     <header style={{ display:"flex", alignItems:"center", padding:"0 20px", height:62, background:t.headerBg, backdropFilter:"blur(20px)", borderBottom:`1px solid ${t.border}`, flexShrink:0, boxShadow:t.shadow, position:"sticky", top:0, zIndex:30, gap:12 }}>
-      {/* Title */}
       <div style={{ flexShrink:0 }}>
         <div style={{ fontFamily:"'Syne',sans-serif", fontSize:15, fontWeight:800, color:t.text, lineHeight:1.2 }}>Clinic Monitoring System</div>
         <div style={{ fontSize:11, color:t.textSub }}>CNO Risk Command · EBM Risk Engine · Updated {new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}</div>
       </div>
-
       <div style={{ flex:1 }}/>
-
-      {/* Filters */}
       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
         {[
-          { icon:IC.calendar, val:dateRange, set:setDateRange, opts:["Last 7 Days","Last 14 Days","Last 30 Days","This Month"] },
-          { icon:IC.filter,   val:clinicFilter, set:setClinicFilter, opts:["All Clinics",...CLINICS.map(c=>c.name)] },
+          { icon:IC.calendar, val:dateRange,    set:setDateRange,    opts:["Last 7 Days","Last 14 Days","Last 30 Days","This Month"] },
+          { icon:IC.filter,   val:clinicFilter, set:setClinicFilter, opts:["All Clinics",...clinics.map(c=>c.name)] },
         ].map((f,i) => (
           <div key={i} style={{ display:"flex", alignItems:"center", gap:6, background:t.inputBg, border:`1px solid ${t.inputBd}`, borderRadius:9, padding:"6px 10px" }}>
             <Ico d={f.icon} size={12} color={t.textSub}/>
@@ -733,10 +408,7 @@ function Header({ t, dark, setDark, notifs, setNotifs, clinicFilter, setClinicFi
           </div>
         ))}
       </div>
-
-      {/* Icon actions */}
       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-        {/* Bell */}
         <div style={{ position:"relative" }}>
           <button onClick={() => { closeAll(); setShowNotif(v=>!v); }} style={{ width:36, height:36, borderRadius:9, background:showNotif?t.accentGl:t.inputBg, border:`1px solid ${showNotif?t.accent:t.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative" }}>
             <Ico d={IC.bell} size={16} color={showNotif?t.accent:t.textSub}/>
@@ -744,53 +416,45 @@ function Header({ t, dark, setDark, notifs, setNotifs, clinicFilter, setClinicFi
           </button>
           {showNotif && <NotifPanel t={t} notifs={notifs} setNotifs={setNotifs} onClose={() => setShowNotif(false)}/>}
         </div>
-        {/* Settings */}
         <div style={{ position:"relative" }}>
           <button onClick={() => { closeAll(); setShowSettings(v=>!v); }} style={{ width:36, height:36, borderRadius:9, background:showSettings?t.accentGl:t.inputBg, border:`1px solid ${showSettings?t.accent:t.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer" }}>
             <Ico d={IC.settings} size={16} color={showSettings?t.accent:t.textSub}/>
           </button>
           {showSettings && <SettingsPanel t={t} dark={dark} setDark={setDark} onClose={() => setShowSettings(false)}/>}
         </div>
-        {/* Theme quick toggle */}
         <button onClick={() => setDark(d => !d)} style={{ display:"flex", alignItems:"center", gap:5, padding:"7px 11px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:9, cursor:"pointer", fontSize:12, fontWeight:600, color:t.textSub, fontFamily:"'DM Sans',sans-serif" }}>
           <Ico d={dark?IC.sun:IC.moon} size={13} color={t.accent}/>{dark?"Light":"Dark"}
         </button>
-        {/* Profile */}
         <div style={{ position:"relative" }}>
           <button onClick={() => { closeAll(); setShowProfile(v=>!v); }} style={{ width:36, height:36, borderRadius:9, background:`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:`2px solid ${showProfile?t.accent:t.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:15, fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:showProfile?`0 4px 16px ${t.accent}44`:"none" }}>
-            C
+            {initial}
           </button>
-          {showProfile && <ProfilePanel t={t} onClose={() => setShowProfile(false)}/>}
+          {showProfile && <ProfilePanel t={t} profile={profile} onClose={() => setShowProfile(false)}/>}
         </div>
       </div>
     </header>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   SUMMARY STAT CARDS
-═══════════════════════════════════════════════════════════════ */
 function SummaryStats({ t, clinics }) {
   const critical = clinics.filter(c => c.score >= 0.75).length;
   const high     = clinics.filter(c => c.score >= 0.50 && c.score < 0.75).length;
   const moderate = clinics.filter(c => c.score >= 0.30 && c.score < 0.50).length;
   const stable   = clinics.filter(c => c.score < 0.30).length;
-  const avg      = clinics.length ? (clinics.reduce((a,c) => a+c.score,0)/clinics.length) : 0;
-
+  const avg      = clinics.length ? (clinics.reduce((a,c) => a+c.score, 0) / clinics.length) : 0;
   const stats = [
-    { label:"Total Clinics",       value:clinics.length,   sub:"Monitored",        color:t.accent,   icon:IC.dashboard },
-    { label:"Reporting Today",     value:clinics.length,   sub:"All reporting",    color:t.accent,   icon:IC.check     },
-    { label:"Critical",            value:critical,         sub:"Score ≥ 0.75",     color:t.danger,   icon:IC.alerts    },
-    { label:"High Risk",           value:high,             sub:"Score 0.50–0.74",  color:t.warning,  icon:IC.alerts    },
-    { label:"Moderate",            value:moderate,         sub:"Score 0.30–0.49",  color:"#FFB020",  icon:IC.info      },
-    { label:"Stable",              value:stable,           sub:"Score < 0.30",     color:t.success,  icon:IC.check     },
-    { label:"Avg Risk Score",      value:avg.toFixed(2),   sub:"Network-wide EBM", color:avg>=0.5?t.danger:t.success, icon:IC.activity },
+    { label:"Total Clinics",   value:clinics.length,  sub:"Monitored",       color:t.accent,                    icon:IC.dashboard },
+    { label:"Reporting Today", value:clinics.length,  sub:"All reporting",   color:t.accent,                    icon:IC.check     },
+    { label:"Critical",        value:critical,        sub:"Score ≥ 0.75",    color:t.danger,                    icon:IC.alerts    },
+    { label:"High Risk",       value:high,            sub:"Score 0.50–0.74", color:t.warning,                   icon:IC.alerts    },
+    { label:"Moderate",        value:moderate,        sub:"Score 0.30–0.49", color:"#FFB020",                   icon:IC.info      },
+    { label:"Stable",          value:stable,          sub:"Score < 0.30",    color:t.success,                   icon:IC.check     },
+    { label:"Avg Risk Score",  value:avg.toFixed(2),  sub:"Network-wide",    color:avg>=0.5?t.danger:t.success, icon:IC.activity  },
   ];
-
   return (
     <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:10 }}>
       {stats.map((s,i) => (
-        <div key={s.label} style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:13, padding:"14px 12px", boxShadow:t.shadow, animation:`fadeUp .4s ease both`, animationDelay:`${i*.05}s` }}>
+        <div key={s.label} style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:13, padding:"14px 12px", boxShadow:t.shadow, animation:"fadeUp .4s ease both", animationDelay:`${i*.05}s` }}>
           <div style={{ width:28, height:28, borderRadius:7, background:`${s.color}18`, display:"flex", alignItems:"center", justifyContent:"center", marginBottom:8 }}>
             <Ico d={s.icon} size={13} color={s.color}/>
           </div>
@@ -803,92 +467,53 @@ function SummaryStats({ t, clinics }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   SCORE RING — pure CSS conic-gradient, no SVG arc math
-═══════════════════════════════════════════════════════════════ */
-function ScoreRing({ score, color, size = 72 }) {
-  const pct   = Math.round(score * 100);
-  const deg   = Math.round(score * 360);
-  const inner = size - 14;
-  return (
-    <div style={{ position:"relative", width:size, height:size, flexShrink:0 }}>
-      {/* Track */}
-      <div style={{ position:"absolute", inset:0, borderRadius:"50%", background:`conic-gradient(${color} ${deg}deg, rgba(128,128,128,0.15) ${deg}deg)` }}/>
-      {/* Inner circle */}
-      <div style={{ position:"absolute", top:(size-inner)/2, left:(size-inner)/2, width:inner, height:inner, borderRadius:"50%", background:"inherit", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:1 }}
-        /* We need the card's background here — pass it via CSS var trick */
-      >
-        <span style={{ fontFamily:"'Syne',sans-serif", fontSize:inner>50?15:12, fontWeight:800, color, lineHeight:1 }}>{pct}</span>
-        <span style={{ fontSize:8, color, opacity:0.7, fontWeight:600 }}>/ 100</span>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   CLINIC CARDS GRID — KPI cards, no broken SVG gauges
-═══════════════════════════════════════════════════════════════ */
 function ClinicCards({ t, clinics, dark }) {
   const [hovered, setHovered] = useState(null);
-
-  // mini KPI bars shown inside each card
   const kpiDefs = [
-    { key:"bedOccupancy",  label:"Beds",     max:100, dangerAt:85, warnAt:70 },
-    { key:"absenteeism",   label:"Absent",   max:60,  dangerAt:30, warnAt:20 },
-    { key:"icuPressure",   label:"ICU",      max:100, dangerAt:85, warnAt:70 },
-    { key:"treatmentDelay",label:"Delay",    max:60,  dangerAt:30, warnAt:20 },
+    { key:"bed_occupancy",   label:"Beds",  max:100, dangerAt:85, warnAt:70 },
+    { key:"absenteeism",     label:"Absent",max:60,  dangerAt:30, warnAt:20 },
+    { key:"icu_pressure",    label:"ICU",   max:100, dangerAt:85, warnAt:70 },
+    { key:"treatment_delay", label:"Delay", max:60,  dangerAt:30, warnAt:20 },
   ];
-
+  if (clinics.length === 0) return <EmptyState t={t} label="No clinics to display."/>;
   return (
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(260px,1fr))", gap:14 }}>
       {clinics.map((c, i) => {
         const rs  = riskScore(c.score);
         const isH = hovered === c.id;
         return (
-          <div key={c.id}
-            onMouseEnter={() => setHovered(c.id)}
-            onMouseLeave={() => setHovered(null)}
-            style={{ background:t.cardBg, border:`1px solid ${isH ? rs.color+"88" : t.border}`, borderRadius:14, overflow:"hidden", boxShadow:isH?`0 8px 32px ${rs.color}22`:t.shadow, transition:"all .22s", animation:`fadeUp .4s ease both`, animationDelay:`${i*.06}s` }}>
-
-            {/* ── Coloured top accent bar ── */}
+          <div key={c.id} onMouseEnter={() => setHovered(c.id)} onMouseLeave={() => setHovered(null)}
+            style={{ background:t.cardBg, border:`1px solid ${isH?rs.color+"88":t.border}`, borderRadius:14, overflow:"hidden", boxShadow:isH?`0 8px 32px ${rs.color}22`:t.shadow, transition:"all .22s", animation:"fadeUp .4s ease both", animationDelay:`${i*.06}s` }}>
             <div style={{ height:4, background:`linear-gradient(90deg,${rs.color},${rs.color}66)` }}/>
-
             <div style={{ padding:"14px 15px 15px" }}>
-              {/* ── Header row: name + score ring ── */}
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12 }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, color:t.text, marginBottom:5 }}>{c.name}</div>
                   <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                     <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:rs.bg, border:`1px solid ${rs.bd}`, borderRadius:20, padding:"3px 9px", fontSize:10, fontWeight:700, color:rs.color, fontFamily:"'Syne',sans-serif" }}>
-                      <span style={{ width:5, height:5, borderRadius:"50%", background:rs.color, display:"inline-block" }}/>
-                      {rs.label}
+                      <span style={{ width:5, height:5, borderRadius:"50%", background:rs.color, display:"inline-block" }}/>{rs.label}
                     </span>
                     <span style={{ fontSize:12, color:t.textMt, fontWeight:700 }}>{c.trend}</span>
                   </div>
                 </div>
-                {/* Score ring — conic-gradient, text always on top via z-index */}
                 <div style={{ position:"relative", width:68, height:68, flexShrink:0 }}>
-                  {/* Outer ring */}
                   <div style={{ position:"absolute", inset:0, borderRadius:"50%", background:`conic-gradient(${rs.color} ${Math.round(c.score*360)}deg, rgba(128,128,128,0.18) ${Math.round(c.score*360)}deg)` }}/>
-                  {/* Inner disc — solid colour from dark/light theme passed as CSS var not needed; we use a real colour */}
-                  <div style={{ position:"absolute", inset:7, borderRadius:"50%", background: isH ? (dark ? "#0a1828" : "#f4f8fb") : (dark ? "#030f1e" : "#ffffff"), display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:2 }}>
+                  <div style={{ position:"absolute", inset:7, borderRadius:"50%", background:isH?(dark?"#0a1828":"#f4f8fb"):(dark?"#030f1e":"#ffffff"), display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:2 }}>
                     <span style={{ fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:800, color:rs.color, lineHeight:1, zIndex:3, position:"relative" }}>{Math.round(c.score*100)}</span>
                     <span style={{ fontSize:8, color:rs.color, opacity:.75, fontWeight:700, zIndex:3, position:"relative" }}>/100</span>
                   </div>
                 </div>
               </div>
-
-              {/* ── 4 mini KPI bars ── */}
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 12px", marginBottom:12 }}>
                 {kpiDefs.map(kd => {
-                  const val = c[kd.key];
+                  const val = c[kd.key] ?? 0;
                   const barColor = val >= kd.dangerAt ? t.danger : val >= kd.warnAt ? t.warning : t.success;
                   const pct = Math.min((val / kd.max) * 100, 100);
                   return (
                     <div key={kd.key}>
                       <div style={{ display:"flex", justifyContent:"space-between", fontSize:9, color:t.textMt, marginBottom:3, fontFamily:"'Syne',sans-serif", fontWeight:600, textTransform:"uppercase", letterSpacing:"0.5px" }}>
                         <span>{kd.label}</span>
-                        <span style={{ color:barColor, fontWeight:800 }}>{val}{kd.key==="treatmentDelay"?" min":"%"}</span>
+                        <span style={{ color:barColor, fontWeight:800 }}>{val}{kd.key==="treatment_delay"?" min":"%"}</span>
                       </div>
                       <div style={{ height:4, background:t.inputBg, borderRadius:2, overflow:"hidden" }}>
                         <div style={{ height:"100%", width:`${pct}%`, background:barColor, borderRadius:2, transition:"width .7s ease" }}/>
@@ -897,9 +522,7 @@ function ClinicCards({ t, clinics, dark }) {
                   );
                 })}
               </div>
-
-              {/* ── Issue tags ── */}
-              {c.issues.length > 0 ? (
+              {c.issues && c.issues.length > 0 ? (
                 <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
                   {c.issues.slice(0,2).map((iss,j) => (
                     <span key={j} style={{ fontSize:10, background:`${rs.color}0d`, border:`1px solid ${rs.color}25`, borderRadius:5, padding:"2px 7px", color:t.textSub }}>⚠ {iss}</span>
@@ -917,46 +540,31 @@ function ClinicCards({ t, clinics, dark }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   GEOGRAPHIC RISK HEATMAP
-═══════════════════════════════════════════════════════════════ */
 function GeographicHeatmap({ t, clinics }) {
   const [tooltip, setTooltip] = useState(null);
-  const [tooltipPos, setTooltipPos] = useState({x:0,y:0});
   return (
     <div style={{ position:"relative", width:"100%", height:260, background:t.inputBg, borderRadius:12, border:`1px solid ${t.border}`, overflow:"hidden" }}>
-      {/* Grid lines */}
-      {[...Array(8)].map((_,i) => (
-        <div key={`h${i}`} style={{ position:"absolute", left:0, right:0, top:`${(i+1)*11}%`, height:1, background:t.gridLine }}/>
-      ))}
-      {[...Array(10)].map((_,i) => (
-        <div key={`v${i}`} style={{ position:"absolute", top:0, bottom:0, left:`${(i+1)*9}%`, width:1, background:t.gridLine }}/>
-      ))}
-      {/* Atmospheric glows */}
-      <div style={{ position:"absolute", inset:0, background:`radial-gradient(ellipse at 22% 38%, ${t.danger}15 0%, transparent 35%)`, pointerEvents:"none" }}/>
-      <div style={{ position:"absolute", inset:0, background:`radial-gradient(ellipse at 76% 30%, ${t.warning}12 0%, transparent 30%)`, pointerEvents:"none" }}/>
-      <div style={{ position:"absolute", inset:0, background:`radial-gradient(ellipse at 69% 61%, ${t.success}09 0%, transparent 28%)`, pointerEvents:"none" }}/>
-      {/* Map label */}
+      {[...Array(8)].map((_,i) => <div key={`h${i}`} style={{ position:"absolute", left:0, right:0, top:`${(i+1)*11}%`, height:1, background:t.gridLine }}/>)}
+      {[...Array(10)].map((_,i) => <div key={`v${i}`} style={{ position:"absolute", top:0, bottom:0, left:`${(i+1)*9}%`, width:1, background:t.gridLine }}/>)}
+      <div style={{ position:"absolute", inset:0, background:`radial-gradient(ellipse at 55% 52%, ${t.danger}14 0%, transparent 30%)`, pointerEvents:"none" }}/>
+      <div style={{ position:"absolute", inset:0, background:`radial-gradient(ellipse at 28% 47%, ${t.warning}10 0%, transparent 25%)`, pointerEvents:"none" }}/>
       <div style={{ position:"absolute", top:10, left:14, fontSize:10, fontWeight:700, color:t.textMt, letterSpacing:"1.2px", fontFamily:"'Syne',sans-serif", textTransform:"uppercase" }}>
         Geographic Risk Distribution · {clinics.length} Facilities
       </div>
-      {/* Legend */}
       <div style={{ position:"absolute", bottom:10, left:14, display:"flex", gap:12 }}>
-        {[["Critical","#FF4D4D"],["High","#FFB020"],["Moderate","#FFB020"],["Stable","#00C48C"]].map(([l,c]) => (
+        {[["Critical","#FF4D4D"],["High Risk","#FFB020"],["Stable","#00C48C"]].map(([l,c]) => (
           <div key={l} style={{ display:"flex", alignItems:"center", gap:5 }}>
             <div style={{ width:8, height:8, borderRadius:"50%", background:c, opacity:.85 }}/>
             <span style={{ fontSize:9, color:t.textMt, fontFamily:"'Syne',sans-serif" }}>{l}</span>
           </div>
         ))}
       </div>
-      {/* Markers */}
       {clinics.map(c => {
         const rs = riskScore(c.score);
         const isCrit = c.score >= 0.75;
         return (
           <div key={c.id} style={{ position:"absolute", left:`${c.coords.x}%`, top:`${c.coords.y}%`, transform:"translate(-50%,-50%)", cursor:"pointer", zIndex:10 }}
-            onMouseEnter={() => { setTooltip(c); setTooltipPos(c.coords); }}
-            onMouseLeave={() => setTooltip(null)}>
+            onMouseEnter={() => setTooltip(c)} onMouseLeave={() => setTooltip(null)}>
             {isCrit && <div style={{ position:"absolute", width:38, height:38, borderRadius:"50%", background:`${rs.color}20`, border:`1.5px solid ${rs.color}55`, top:-9, left:-9, animation:"pulse 2s ease infinite" }}/>}
             <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${rs.color},${rs.color}cc)`, border:"2.5px solid #fff", boxShadow:`0 3px 12px ${rs.color}66`, display:"flex", alignItems:"center", justifyContent:"center", position:"relative" }}>
               <span style={{ fontSize:7, fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif" }}>{c.score.toFixed(1)}</span>
@@ -967,35 +575,31 @@ function GeographicHeatmap({ t, clinics }) {
           </div>
         );
       })}
-      {/* Tooltip */}
       {tooltip && (
-        <div style={{ position:"absolute", left:tooltipPos.x>65?"auto":`${Math.min(tooltipPos.x+5,55)}%`, right:tooltipPos.x>65?"8%":"auto", top:`${Math.min(tooltipPos.y+5,62)}%`, background:t.tooltipBg, border:`1px solid ${riskScore(tooltip.score).color}55`, borderRadius:12, padding:"12px 14px", boxShadow:t.popShadow, zIndex:20, minWidth:170, pointerEvents:"none" }}>
+        <div style={{ position:"absolute", left:tooltip.coords.x>65?"auto":`${Math.min(tooltip.coords.x+5,55)}%`, right:tooltip.coords.x>65?"8%":"auto", top:`${Math.min(tooltip.coords.y+5,62)}%`, background:t.tooltipBg, border:`1px solid ${riskScore(tooltip.score).color}55`, borderRadius:12, padding:"12px 14px", boxShadow:t.popShadow, zIndex:20, minWidth:170, pointerEvents:"none" }}>
           <div style={{ fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:800, color:t.text, marginBottom:5 }}>{tooltip.name}</div>
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
             <span style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:riskScore(tooltip.score).color }}>{tooltip.score.toFixed(2)}</span>
             <span style={{ fontSize:11, fontWeight:700, color:riskScore(tooltip.score).color, background:riskScore(tooltip.score).bg, borderRadius:6, padding:"2px 8px" }}>{riskScore(tooltip.score).label}</span>
           </div>
-          {tooltip.issues.slice(0,2).map((iss,i) => <div key={i} style={{ fontSize:11, color:t.textSub, marginTop:2 }}>• {iss}</div>)}
-          {!tooltip.issues.length && <div style={{ fontSize:11, color:t.success }}>✓ No active issues</div>}
+          {(tooltip.issues||[]).slice(0,2).map((iss,i) => <div key={i} style={{ fontSize:11, color:t.textSub, marginTop:2 }}>• {iss}</div>)}
+          {(!tooltip.issues||tooltip.issues.length===0) && <div style={{ fontSize:11, color:t.success }}>✓ No active issues</div>}
         </div>
       )}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CLINIC RANKING BAR CHART
-═══════════════════════════════════════════════════════════════ */
+// FIX 2: domain changed from [0,100] to [0,1] — backend scores are decimals
 function ClinicRankingChart({ t, clinics }) {
-  const sorted = [...clinics].sort((a,b) => b.score-a.score);
-  // Recharts horizontal bar
-  const data = sorted.map(c => ({ name:c.name, score:c.score, color:riskScore(c.score).color }));
+  if (!clinics.length) return <EmptyState t={t} label="No ranking data."/>;
+  const data = [...clinics].sort((a,b) => b.score-a.score).map(c => ({ name:c.name, score:c.score, color:riskScore(c.score).color }));
   return (
-    <ResponsiveContainer width="100%" height={Math.max(160, sorted.length*42)}>
+    <ResponsiveContainer width="100%" height={Math.max(160, data.length*42)}>
       <BarChart data={data} layout="vertical" margin={{ top:0, right:40, left:0, bottom:0 }}>
         <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={t.gridLine}/>
-        <XAxis type="number" domain={[0,1]} tick={{ fontSize:9, fill:t.chartText }} axisLine={false} tickLine={false} tickFormatter={v=>v.toFixed(1)}/>
-        <YAxis type="category" dataKey="name" tick={{ fontSize:11, fill:t.textSub }} axisLine={false} tickLine={false} width={90}/>
+        <XAxis type="number" domain={[0, 1]} tickCount={6} tick={{ fontSize:9, fill:t.chartText }} axisLine={false} tickLine={false} tickFormatter={v => v.toFixed(1)}/>
+        <YAxis type="category" dataKey="name" tick={{ fontSize:11, fill:t.textSub }} axisLine={false} tickLine={false} width={100}/>
         <Tooltip formatter={(v) => [v.toFixed(2),"Risk Score"]} contentStyle={{ fontSize:11, background:t.tooltipBg, border:`1px solid ${t.borderSt}`, borderRadius:8 }} labelStyle={{ color:t.text }}/>
         <ReferenceLine x={0.75} stroke={t.danger}  strokeDasharray="4 4" strokeWidth={1}/>
         <ReferenceLine x={0.50} stroke={t.warning} strokeDasharray="4 4" strokeWidth={1}/>
@@ -1007,19 +611,24 @@ function ClinicRankingChart({ t, clinics }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   TREND CHARTS (tabbed area charts)
-═══════════════════════════════════════════════════════════════ */
 function TrendCharts({ t }) {
-  const [active, setActive] = useState("absenteeism");
+  const [data,    setData]    = useState([]);
+  const [active,  setActive]  = useState("absenteeism");
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`${API}/trends/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
   const charts = [
-    { key:"absenteeism", label:"Absenteeism",  color:"#FF4D4D", unit:"%" },
-    { key:"emergencies", label:"Emergencies",   color:"#FFB020", unit:" cases" },
-    { key:"delays",      label:"Treat. Delays", color:"#A855F7", unit:" min" },
-    { key:"occupancy",   label:"Bed Occupancy", color:"#00AEEF", unit:"%" },
+    { key:"absenteeism", label:"Absenteeism",  color:"#FF4D4D", unit:"%"     },
+    { key:"emergencies", label:"Emergencies",  color:"#FFB020", unit:" cases" },
+    { key:"delays",      label:"Treat. Delays",color:"#A855F7", unit:" min"  },
+    { key:"occupancy",   label:"Bed Occupancy",color:"#00AEEF", unit:"%"     },
   ];
-  const ac = charts.find(c => c.key===active);
-
+  const ac   = charts.find(c => c.key===active);
+  const vals = data.map(d => d[ac.key]).filter(v => v !== undefined);
   const CustomTooltip = ({ active:isAct, payload, label }) => {
     if (!isAct || !payload?.length) return null;
     return (
@@ -1029,12 +638,10 @@ function TrendCharts({ t }) {
       </div>
     );
   };
-
-  const vals = TREND_DATA.map(d => d[ac.key]);
-
+  if (loading) return <EmptyState t={t} loading/>;
+  if (!data.length) return <EmptyState t={t} label="No trend data available."/>;
   return (
     <div>
-      {/* Tab buttons */}
       <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
         {charts.map(c => (
           <button key={c.key} onClick={() => setActive(c.key)}
@@ -1043,47 +650,52 @@ function TrendCharts({ t }) {
           </button>
         ))}
       </div>
-      {/* Area chart */}
-      <div style={{ minHeight:200 }}>
-        <ResponsiveContainer width="100%" height={190}>
-          <AreaChart data={TREND_DATA} margin={{ top:4, right:4, left:-22, bottom:0 }}>
-            <defs>
-              <linearGradient id={`grad_${ac.key}`} x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%"  stopColor={ac.color} stopOpacity={0.3}/>
-                <stop offset="95%" stopColor={ac.color} stopOpacity={0}/>
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke={t.gridLine} vertical={false}/>
-            <XAxis dataKey="day" tick={{ fontSize:9, fill:t.chartText }} axisLine={false} tickLine={false} interval={2}/>
-            <YAxis tick={{ fontSize:9, fill:t.chartText }} axisLine={false} tickLine={false}/>
-            <Tooltip content={<CustomTooltip/>}/>
-            <Area type="monotone" dataKey={ac.key} stroke={ac.color} strokeWidth={2.5} fill={`url(#grad_${ac.key})`} dot={false} activeDot={{ r:5, fill:ac.color, stroke:"#fff", strokeWidth:2 }}/>
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      {/* Mini stats */}
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12, paddingTop:12, borderTop:`1px solid ${t.border}` }}>
-        {["Min","Max","Avg"].map(stat => {
-          const v = stat==="Min"?Math.min(...vals):stat==="Max"?Math.max(...vals):Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
-          return (
-            <div key={stat} style={{ background:t.rowBg, border:`1px solid ${t.border}`, borderRadius:9, padding:"8px 10px", textAlign:"center" }}>
-              <div style={{ fontSize:10, color:t.textMt, fontFamily:"'Syne',sans-serif", fontWeight:600 }}>{stat}</div>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:800, color:ac.color, marginTop:2 }}>{v}{ac.unit}</div>
-            </div>
-          );
-        })}
-      </div>
+      <ResponsiveContainer width="100%" height={190}>
+        <AreaChart data={data} margin={{ top:4, right:4, left:-22, bottom:0 }}>
+          <defs>
+            <linearGradient id={`grad_${ac.key}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%"  stopColor={ac.color} stopOpacity={0.3}/>
+              <stop offset="95%" stopColor={ac.color} stopOpacity={0}/>
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={t.gridLine} vertical={false}/>
+          <XAxis dataKey="day" tick={{ fontSize:9, fill:t.chartText }} axisLine={false} tickLine={false} interval={1}/>
+          <YAxis tick={{ fontSize:9, fill:t.chartText }} axisLine={false} tickLine={false}/>
+          <Tooltip content={<CustomTooltip/>}/>
+          <Area type="monotone" dataKey={ac.key} stroke={ac.color} strokeWidth={2.5} fill={`url(#grad_${ac.key})`} dot={false} activeDot={{ r:5, fill:ac.color, stroke:"#fff", strokeWidth:2 }}/>
+        </AreaChart>
+      </ResponsiveContainer>
+      {vals.length > 0 && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginTop:12, paddingTop:12, borderTop:`1px solid ${t.border}` }}>
+          {["Min","Max","Avg"].map(stat => {
+            const v = stat==="Min"?Math.min(...vals):stat==="Max"?Math.max(...vals):Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+            return (
+              <div key={stat} style={{ background:t.rowBg, border:`1px solid ${t.border}`, borderRadius:9, padding:"8px 10px", textAlign:"center" }}>
+                <div style={{ fontSize:10, color:t.textMt, fontFamily:"'Syne',sans-serif", fontWeight:600 }}>{stat}</div>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:17, fontWeight:800, color:ac.color, marginTop:2 }}>{v}{ac.unit}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   RESOURCE PRESSURE MONITOR (from v1)
-═══════════════════════════════════════════════════════════════ */
 function ResourceMonitor({ t }) {
+  const [resources, setResources] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  useEffect(() => {
+    fetch(`${API}/resources/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { setResources(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  if (loading) return <EmptyState t={t} loading/>;
+  if (!resources.length) return <EmptyState t={t} label="No resource data."/>;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-      {SYSTEM_RESOURCES.map(r => {
+      {resources.map(r => {
         const color = resourceColor(r.value, r.warning, r.critical, r.invert);
         return (
           <div key={r.label}>
@@ -1101,13 +713,8 @@ function ResourceMonitor({ t }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   RISK DRIVER ANALYSIS — full 9-category 48-KPI tabbed panel
-═══════════════════════════════════════════════════════════════ */
 function kpiStatus(kpi) {
-  if (kpi.fmt === "status") {
-    return kpi.value >= 1 ? "ok" : "crit";
-  }
+  if (kpi.fmt === "status") return kpi.value >= 1 ? "ok" : "crit";
   if (kpi.hiWarn) {
     if (kpi.crit > 0 && kpi.value >= kpi.crit) return "crit";
     if (kpi.warn > 0 && kpi.value >= kpi.warn) return "warn";
@@ -1120,103 +727,89 @@ function kpiStatus(kpi) {
   }
   return "ok";
 }
-
 function kpiColor(status, t) {
-  if (status === "crit") return t.danger;
-  if (status === "warn") return t.warning;
+  if (status==="crit") return t.danger;
+  if (status==="warn") return t.warning;
   return t.success;
 }
-
 function kpiBarPct(kpi) {
-  if (kpi.fmt === "status") return kpi.value >= 1 ? 100 : 0;
-  if (kpi.fmt === "pct") return Math.min(kpi.value, 100);
-  // for counts — scale relative to critical threshold or 2× value
+  if (kpi.fmt==="status") return kpi.value>=1?100:0;
+  if (kpi.fmt==="pct") return Math.min(kpi.value, 100);
   const ceiling = kpi.hiWarn
-    ? Math.max(kpi.crit * 1.3, kpi.value * 1.2, 10)
-    : Math.max(kpi.warn * 1.5, kpi.value * 1.2, 10);
-  return Math.min((kpi.value / ceiling) * 100, 100);
+    ? Math.max(kpi.crit*1.3, kpi.value*1.2, 10)
+    : Math.max(kpi.warn*1.5, kpi.value*1.2, 10);
+  return Math.min((kpi.value/ceiling)*100, 100);
 }
 
-function RiskDrivers({ t }) {
-  const [activeTab, setActiveTab] = useState("patient_flow");
-  const cat = KPI_CATEGORIES.find(c => c.id === activeTab) || KPI_CATEGORIES[0];
-
-  // count alerts across all categories for badge
-  const alertCount = (catId) => {
-    const c = KPI_CATEGORIES.find(x => x.id === catId);
-    if (!c) return 0;
-    return c.kpis.filter(k => kpiStatus(k) !== "ok").length;
-  };
-
+function KpiMonitor({ t }) {
+  const [categories, setCategories] = useState([]);
+  const [activeTab,  setActiveTab]  = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  useEffect(() => {
+    fetch(`${API}/kpis/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { setCategories(d); setActiveTab(d[0]?.id || null); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+  if (loading) return <EmptyState t={t} loading/>;
+  if (!categories.length) return <EmptyState t={t} label="No KPI data available."/>;
+  const cat = categories.find(c => c.id===activeTab) || categories[0];
+  const alertCount = (c) => c.kpis.filter(k => kpiStatus(k) !== "ok").length;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-      {/* ── Category tab strip (scrollable) ── */}
       <div style={{ display:"flex", gap:6, overflowX:"auto", paddingBottom:12, marginBottom:4, scrollbarWidth:"none" }}>
-        {KPI_CATEGORIES.map(c => {
-          const alerts = alertCount(c.id);
-          const isAct = activeTab === c.id;
+        {categories.map(c => {
+          const alerts = alertCount(c);
+          const isAct  = activeTab === c.id;
           return (
             <button key={c.id} onClick={() => setActiveTab(c.id)}
-              style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:20, background:isAct?`${c.color}18`:t.inputBg, border:`1.5px solid ${isAct?c.color:t.border}`, cursor:"pointer", fontSize:11, fontWeight:700, color:isAct?c.color:t.textSub, fontFamily:"'Syne',sans-serif", whiteSpace:"nowrap", flexShrink:0, transition:"all .18s", position:"relative" }}>
+              style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", borderRadius:20, background:isAct?`${c.color}18`:t.inputBg, border:`1.5px solid ${isAct?c.color:t.border}`, cursor:"pointer", fontSize:11, fontWeight:700, color:isAct?c.color:t.textSub, fontFamily:"'Syne',sans-serif", whiteSpace:"nowrap", flexShrink:0, transition:"all .18s" }}>
               <span style={{ fontSize:13 }}>{c.icon}</span>
               {c.label}
-              {alerts > 0 && (
-                <span style={{ background:alerts >= 2 ? t.danger : t.warning, color:"#fff", borderRadius:20, padding:"0px 5px", fontSize:9, fontWeight:800, minWidth:16, textAlign:"center" }}>{alerts}</span>
-              )}
+              {alerts > 0 && <span style={{ background:alerts>=2?t.danger:t.warning, color:"#fff", borderRadius:20, padding:"0px 5px", fontSize:9, fontWeight:800, minWidth:16, textAlign:"center" }}>{alerts}</span>}
             </button>
           );
         })}
       </div>
-
-      {/* ── Category header ── */}
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:12, paddingBottom:10, borderBottom:`1px solid ${t.border}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
           <span style={{ fontSize:18 }}>{cat.icon}</span>
           <div>
             <div style={{ fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:800, color:t.text }}>{cat.label}</div>
-            <div style={{ fontSize:10, color:t.textMt }}>{cat.kpis.length} indicators · {alertCount(cat.id)} flagged</div>
+            <div style={{ fontSize:10, color:t.textMt }}>{cat.kpis.length} indicators · {alertCount(cat)} flagged</div>
           </div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
           {[["ok",t.success,"OK"],["warn",t.warning,"Warn"],["crit",t.danger,"Critical"]].map(([s,cl,lbl]) => (
             <span key={s} style={{ fontSize:10, fontWeight:700, background:`${cl}18`, border:`1px solid ${cl}33`, borderRadius:20, padding:"2px 8px", color:cl, fontFamily:"'Syne',sans-serif" }}>
-              {cat.kpis.filter(k => kpiStatus(k) === s).length} {lbl}
+              {cat.kpis.filter(k=>kpiStatus(k)===s).length} {lbl}
             </span>
           ))}
         </div>
       </div>
-
-      {/* ── KPI rows ── */}
       <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
         {cat.kpis.map((kpi, i) => {
-          const status = kpiStatus(kpi);
-          const color  = kpiColor(status, t);
-          const pct    = kpiBarPct(kpi);
-
-          const displayVal = kpi.fmt === "status"
-            ? (kpi.value >= 1 ? "Operational" : "Offline")
-            : `${kpi.value}${kpi.unit}`;
-
+          const status     = kpiStatus(kpi);
+          const color      = kpiColor(status, t);
+          const pct        = kpiBarPct(kpi);
+          const displayVal = kpi.fmt==="status" ? (kpi.value>=1?"Operational":"Offline") : `${kpi.value}${kpi.unit}`;
           return (
-            <div key={kpi.key} style={{ animation:`fadeUp .3s ease both`, animationDelay:`${i*.04}s` }}>
+            <div key={kpi.key} style={{ animation:"fadeUp .3s ease both", animationDelay:`${i*.04}s` }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:5 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:7 }}>
-                  {/* Status dot */}
                   <div style={{ width:8, height:8, borderRadius:"50%", background:color, flexShrink:0, boxShadow:`0 0 5px ${color}66` }}/>
                   <span style={{ fontSize:12, fontWeight:500, color:t.textSub }}>{kpi.label}</span>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  {/* Status badge */}
-                  {status !== "ok" && (
+                  {status!=="ok" && (
                     <span style={{ fontSize:9, fontWeight:800, background:`${color}18`, border:`1px solid ${color}33`, borderRadius:20, padding:"1px 6px", color, fontFamily:"'Syne',sans-serif", textTransform:"uppercase" }}>
-                      {status === "crit" ? "⚠ Critical" : "⚠ Warning"}
+                      {status==="crit"?"⚠ Critical":"⚠ Warning"}
                     </span>
                   )}
                   <span style={{ fontFamily:"'Syne',sans-serif", fontSize:13, fontWeight:800, color, minWidth:52, textAlign:"right" }}>{displayVal}</span>
                 </div>
               </div>
-              {/* Progress bar (hidden for static counts with no threshold) */}
-              {!(kpi.warn === 0 && kpi.crit === 0) && (
+              {!(kpi.warn===0&&kpi.crit===0) && (
                 <div style={{ height:5, background:t.inputBg, borderRadius:3, overflow:"hidden" }}>
                   <div style={{ height:"100%", width:`${pct}%`, background:`linear-gradient(90deg,${color}77,${color})`, borderRadius:3, transition:"width .6s ease" }}/>
                 </div>
@@ -1229,24 +822,31 @@ function RiskDrivers({ t }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   ACTIVE ALERTS PANEL (expandable, from v2)
-═══════════════════════════════════════════════════════════════ */
 function AlertsPanel({ t }) {
-  const [expanded, setExpanded] = useState(1);
+  const [alerts,   setAlerts]   = useState([]);
+  const [expanded, setExpanded] = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  useEffect(() => {
+    fetch(`${API}/alerts/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { setAlerts(d); setExpanded(d[0]?.id || null); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
   const levelCfg = {
     critical: { color:t.danger,  bg:`${t.danger}10`,  bd:`${t.danger}35`,  tag:"CRITICAL" },
     high:     { color:t.warning, bg:`${t.warning}10`, bd:`${t.warning}35`, tag:"HIGH"     },
     warning:  { color:"#FFB020", bg:"rgba(255,176,32,0.08)", bd:"rgba(255,176,32,0.28)", tag:"WARNING" },
   };
+  if (loading) return <EmptyState t={t} loading/>;
+  if (!alerts.length) return <EmptyState t={t} label="No active alerts."/>;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-      {ALERTS.map((a,i) => {
-        const cfg = levelCfg[a.level] || levelCfg.warning;
+      {alerts.map((a,i) => {
+        const cfg   = levelCfg[a.level] || levelCfg.warning;
         const isExp = expanded === a.id;
         return (
           <div key={a.id} onClick={() => setExpanded(isExp?null:a.id)}
-            style={{ background:cfg.bg, border:`1px solid ${cfg.bd}`, borderRadius:12, overflow:"hidden", cursor:"pointer", transition:"all .2s", animation:`fadeUp .4s ease both`, animationDelay:`${i*.07}s` }}>
+            style={{ background:cfg.bg, border:`1px solid ${cfg.bd}`, borderRadius:12, overflow:"hidden", cursor:"pointer", transition:"all .2s", animation:"fadeUp .4s ease both", animationDelay:`${i*.07}s` }}>
             <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", padding:"13px 15px", gap:10 }}>
               <div style={{ flex:1 }}>
                 <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4, flexWrap:"wrap" }}>
@@ -1261,7 +861,7 @@ function AlertsPanel({ t }) {
               <span style={{ fontSize:15, color:cfg.color, transition:"transform .2s", transform:isExp?"rotate(180deg)":"rotate(0)", lineHeight:1, paddingTop:2, flexShrink:0 }}>▾</span>
             </div>
             <div style={{ padding:"0 15px 12px", display:"flex", flexWrap:"wrap", gap:5 }}>
-              {a.issues.map((iss,j) => (
+              {(a.issues||[]).map((iss,j) => (
                 <span key={j} style={{ fontSize:10, background:"rgba(0,0,0,0.09)", border:`1px solid ${cfg.bd}`, borderRadius:6, padding:"2px 8px", color:t.textSub }}>⚠ {iss}</span>
               ))}
             </div>
@@ -1269,7 +869,7 @@ function AlertsPanel({ t }) {
               <div style={{ padding:"11px 15px 13px", borderTop:`1px solid ${cfg.bd}`, background:"rgba(0,0,0,0.07)" }}>
                 <div style={{ fontSize:10, fontWeight:700, color:cfg.color, letterSpacing:"1.2px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", marginBottom:8 }}>Recommended Actions</div>
                 <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
-                  {a.actions.map((act,j) => (
+                  {(a.actions||[]).map((act,j) => (
                     <div key={j} style={{ display:"flex", alignItems:"flex-start", gap:7 }}>
                       <span style={{ fontSize:12, color:cfg.color, marginTop:1, flexShrink:0 }}>→</span>
                       <span style={{ fontSize:12, color:t.textSub, lineHeight:1.5 }}>{act}</span>
@@ -1285,21 +885,17 @@ function AlertsPanel({ t }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   CLINIC STATUS TABLE (from v1)
-═══════════════════════════════════════════════════════════════ */
 function ClinicTable({ t, clinics }) {
-  const sorted = [...clinics].sort((a,b) => b.score-a.score);
+  if (!clinics.length) return <EmptyState t={t} label="No clinic data."/>;
+  const sorted  = [...clinics].sort((a,b) => b.score-a.score);
   const headers = ["Clinic","Risk Score","Status","Bed Occ.","Staff Avail.","Emergency/hr","Absenteeism","Treat. Delay","ICU Pressure"];
   return (
     <div style={{ overflowX:"auto" }}>
       <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
         <thead>
-          <tr>
-            {headers.map(h => (
-              <th key={h} style={{ textAlign:"left", padding:"8px 12px", color:t.textMt, fontWeight:700, fontSize:10, letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", borderBottom:`1px solid ${t.border}`, whiteSpace:"nowrap" }}>{h}</th>
-            ))}
-          </tr>
+          <tr>{headers.map(h => (
+            <th key={h} style={{ textAlign:"left", padding:"8px 12px", color:t.textMt, fontWeight:700, fontSize:10, letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", borderBottom:`1px solid ${t.border}`, whiteSpace:"nowrap" }}>{h}</th>
+          ))}</tr>
         </thead>
         <tbody>
           {sorted.map((c,i) => {
@@ -1312,16 +908,15 @@ function ClinicTable({ t, clinics }) {
                 <td style={{ padding:"10px 12px", fontFamily:"'Syne',sans-serif", fontWeight:800, color:rs.color }}>{c.score.toFixed(2)}</td>
                 <td style={{ padding:"10px 12px" }}>
                   <span style={{ display:"inline-flex", alignItems:"center", gap:4, background:rs.bg, border:`1px solid ${rs.bd}`, borderRadius:20, padding:"2px 8px", fontSize:10, fontWeight:700, color:rs.color, fontFamily:"'Syne',sans-serif", whiteSpace:"nowrap" }}>
-                    <span style={{ width:5, height:5, borderRadius:"50%", background:rs.color, display:"inline-block" }}/>
-                    {rs.label}
+                    <span style={{ width:5, height:5, borderRadius:"50%", background:rs.color, display:"inline-block" }}/>{rs.label}
                   </span>
                 </td>
-                <td style={{ padding:"10px 12px", color:c.bedOccupancy>=85?t.danger:c.bedOccupancy>=70?t.warning:t.textSub }}>{c.bedOccupancy}%</td>
-                <td style={{ padding:"10px 12px", color:c.staffAvail<65?t.danger:c.staffAvail<75?t.warning:t.textSub }}>{c.staffAvail}%</td>
-                <td style={{ padding:"10px 12px", color:t.textSub }}>{c.emergencyCases}</td>
-                <td style={{ padding:"10px 12px", color:c.absenteeism>=30?t.danger:c.absenteeism>=20?t.warning:t.textSub }}>{c.absenteeism}%</td>
-                <td style={{ padding:"10px 12px", color:c.treatmentDelay>=30?t.danger:c.treatmentDelay>=20?t.warning:t.textSub }}>{c.treatmentDelay} min</td>
-                <td style={{ padding:"10px 12px", color:c.icuPressure>=85?t.danger:c.icuPressure>=70?t.warning:t.textSub }}>{c.icuPressure}%</td>
+                <td style={{ padding:"10px 12px", color:(c.bed_occupancy??0)>=85?t.danger:(c.bed_occupancy??0)>=70?t.warning:t.textSub }}>{c.bed_occupancy??"-"}%</td>
+                <td style={{ padding:"10px 12px", color:(c.staff_availability??100)<65?t.danger:(c.staff_availability??100)<75?t.warning:t.textSub }}>{c.staff_availability??"-"}%</td>
+                <td style={{ padding:"10px 12px", color:t.textSub }}>{c.emergency_cases??"-"}</td>
+                <td style={{ padding:"10px 12px", color:(c.absenteeism??0)>=30?t.danger:(c.absenteeism??0)>=20?t.warning:t.textSub }}>{c.absenteeism??"-"}%</td>
+                <td style={{ padding:"10px 12px", color:(c.treatment_delay??0)>=30?t.danger:(c.treatment_delay??0)>=20?t.warning:t.textSub }}>{c.treatment_delay??"-"} min</td>
+                <td style={{ padding:"10px 12px", color:(c.icu_pressure??0)>=85?t.danger:(c.icu_pressure??0)>=70?t.warning:t.textSub }}>{c.icu_pressure??"-"}%</td>
               </tr>
             );
           })}
@@ -1331,26 +926,31 @@ function ClinicTable({ t, clinics }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   RECENT REPORTS
-═══════════════════════════════════════════════════════════════ */
 function RecentReports({ t, showToast }) {
+  const [reports,     setReports]     = useState([]);
   const [downloading, setDownloading] = useState(null);
+  const [loading,     setLoading]     = useState(true);
+  useEffect(() => {
+    fetch(`${API}/reports/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => { setReports(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
   const typeColor = { summary:t.accent, daily:t.success, weekly:t.purple, monthly:t.warning };
   const typeLabel = { summary:"Summary", daily:"Daily", weekly:"Weekly", monthly:"Monthly" };
-
   const handleDownload = (r) => {
     setDownloading(r.id);
     setTimeout(() => { setDownloading(null); showToast(`Downloaded: ${r.title}`, "success"); }, 1400);
   };
-
+  if (loading) return <EmptyState t={t} loading/>;
+  if (!reports.length) return <EmptyState t={t} label="No reports available."/>;
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-      {REPORTS.map((r,i) => {
-        const color = typeColor[r.type];
-        const isDL = downloading === r.id;
+      {reports.map((r,i) => {
+        const color = typeColor[r.type] || t.accent;
+        const isDL  = downloading === r.id;
         return (
-          <div key={r.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", background:t.rowBg, border:`1px solid ${t.border}`, borderRadius:11, transition:"all .18s", animation:`fadeUp .4s ease both`, animationDelay:`${i*.05}s` }}
+          <div key={r.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 12px", background:t.rowBg, border:`1px solid ${t.border}`, borderRadius:11, transition:"all .18s", animation:"fadeUp .4s ease both", animationDelay:`${i*.05}s` }}
             onMouseEnter={e=>e.currentTarget.style.borderColor=`${color}55`}
             onMouseLeave={e=>e.currentTarget.style.borderColor=t.border}>
             <div style={{ width:34, height:34, borderRadius:8, background:`${color}18`, border:`1px solid ${color}33`, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
@@ -1360,7 +960,7 @@ function RecentReports({ t, showToast }) {
               <div style={{ fontFamily:"'Syne',sans-serif", fontSize:12, fontWeight:700, color:t.text, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{r.title}</div>
               <div style={{ fontSize:10, color:t.textSub, marginTop:1 }}>{r.date} · {r.size}</div>
             </div>
-            <span style={{ fontSize:10, fontWeight:700, background:`${color}18`, border:`1px solid ${color}33`, borderRadius:20, padding:"2px 7px", color, fontFamily:"'Syne',sans-serif", flexShrink:0 }}>{typeLabel[r.type]}</span>
+            <span style={{ fontSize:10, fontWeight:700, background:`${color}18`, border:`1px solid ${color}33`, borderRadius:20, padding:"2px 7px", color, fontFamily:"'Syne',sans-serif", flexShrink:0 }}>{typeLabel[r.type]||r.type}</span>
             <button onClick={() => handleDownload(r)} style={{ width:30, height:30, borderRadius:8, background:isDL?`${t.success}18`:t.accentGl, border:`1px solid ${isDL?t.success:t.accent}33`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", flexShrink:0, transition:"all .2s" }}>
               {isDL ? <Ico d={IC.check} size={13} color={t.success} stroke={2.5}/> : <Ico d={IC.download} size={13} color={t.accent}/>}
             </button>
@@ -1371,108 +971,57 @@ function RecentReports({ t, showToast }) {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   LOGIN SCREEN
-═══════════════════════════════════════════════════════════════ */
-function LoginScreen({ onLogin, dark, setDark }) {
-  const t = mkT(dark);
-  const [email,    setEmail]    = useState("");
-  const [password, setPassword] = useState("");
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState("");
-
-  const handleLogin = () => {
-    if (!email || !password) { setError("Please enter your credentials."); return; }
-    setLoading(true); setError("");
-    setTimeout(() => { setLoading(false); onLogin(); }, 1200);
-  };
-
-  return (
-    <div style={{ minHeight:"100vh", background:t.pageBg, display:"flex", alignItems:"center", justifyContent:"center", fontFamily:"'DM Sans',sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap'); *{box-sizing:border-box;}`}</style>
-      <div style={{ width:"100%", maxWidth:420, padding:"0 20px" }}>
-        {/* Logo */}
-        <div style={{ textAlign:"center", marginBottom:32 }}>
-          <div style={{ display:"inline-flex", alignItems:"center", justifyContent:"center", width:60, height:60, borderRadius:16, background:t.accent, marginBottom:16, boxShadow:`0 8px 32px ${t.accent}44` }}>
-            <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
-              <path d="M14 24C14 18.477 18.477 14 24 14s10 4.477 10 10-4.477 10-10 10" stroke="#fff" strokeWidth="3.5" strokeLinecap="round"/>
-              <path d="M24 19v5l3 3" stroke="#fff" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <circle cx="24" cy="34" r="2.2" fill="#fff"/>
-            </svg>
-          </div>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:22, color:t.text, letterSpacing:"2px" }}>CIMS</div>
-          <div style={{ fontSize:12, color:t.textSub, marginTop:4 }}>Clinic Instability Monitoring System</div>
-        </div>
-
-        {/* Card */}
-        <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:18, padding:32, boxShadow:t.shadow }}>
-          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:17, color:t.text, marginBottom:6 }}>CNO Sign In</div>
-          <div style={{ fontSize:12, color:t.textSub, marginBottom:24 }}>Access the command dashboard</div>
-
-          {error && (
-            <div style={{ background:`${t.danger}12`, border:`1px solid ${t.danger}33`, borderRadius:8, padding:"9px 12px", fontSize:12, color:t.danger, marginBottom:16 }}>
-              {error}
-            </div>
-          )}
-
-          {/* Email */}
-          <div style={{ marginBottom:14 }}>
-            <label style={{ fontSize:11, fontWeight:600, color:t.textSub, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Email</label>
-            <input
-              type="email" value={email} onChange={e => setEmail(e.target.value)}
-              placeholder="cno@hospital.gov"
-              style={{ width:"100%", padding:"10px 14px", background:t.inputBg, border:`1px solid ${t.inputBd}`, borderRadius:10, fontSize:13, color:t.text, outline:"none", fontFamily:"'DM Sans',sans-serif" }}
-              onFocus={e  => e.target.style.borderColor = t.accent}
-              onBlur={e   => e.target.style.borderColor = t.inputBd}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
-            />
-          </div>
-
-          {/* Password */}
-          <div style={{ marginBottom:22 }}>
-            <label style={{ fontSize:11, fontWeight:600, color:t.textSub, display:"block", marginBottom:6, textTransform:"uppercase", letterSpacing:"0.8px" }}>Password</label>
-            <input
-              type="password" value={password} onChange={e => setPassword(e.target.value)}
-              placeholder="••••••••"
-              style={{ width:"100%", padding:"10px 14px", background:t.inputBg, border:`1px solid ${t.inputBd}`, borderRadius:10, fontSize:13, color:t.text, outline:"none", fontFamily:"'DM Sans',sans-serif" }}
-              onFocus={e  => e.target.style.borderColor = t.accent}
-              onBlur={e   => e.target.style.borderColor = t.inputBd}
-              onKeyDown={e => e.key === "Enter" && handleLogin()}
-            />
-          </div>
-
-          {/* Submit */}
-          <button onClick={handleLogin} disabled={loading}
-            style={{ width:"100%", padding:"12px", background:t.accent, border:"none", borderRadius:10, color:"#fff", fontSize:14, fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:loading?"not-allowed":"pointer", opacity:loading?0.75:1, transition:"opacity .2s", letterSpacing:"0.5px" }}>
-            {loading ? "Signing in…" : "Sign In →"}
-          </button>
-        </div>
-
-        {/* Theme toggle */}
-        <div style={{ textAlign:"center", marginTop:18 }}>
-          <button onClick={() => setDark(d => !d)} style={{ background:"none", border:"none", cursor:"pointer", fontSize:12, color:t.textMt, fontFamily:"'DM Sans',sans-serif" }}>
-            {dark ? "☀️ Switch to Light Mode" : "🌙 Switch to Dark Mode"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   ROOT COMPONENT
-═══════════════════════════════════════════════════════════════ */
 export default function CNODashboard() {
   const navigate = useNavigate();
-  const [dark, setDark]               = useState(true);
-  const [activeNav, setActiveNav]     = useState("Dashboard");
-  const [collapsed, setCollapsed]     = useState(false);
+  const [dark,         setDark]         = useState(true);
+  const [activeNav,    setActiveNav]    = useState("Dashboard");
+  const [collapsed,    setCollapsed]    = useState(false);
+  const [clinics,      setClinics]      = useState([]);
+  const [notifs,       setNotifs]       = useState([]);
+  const [profile,      setProfile]      = useState(null);
   const [clinicFilter, setClinicFilter] = useState("All Clinics");
-  const [dateRange, setDateRange]     = useState("Last 14 Days");
-  const [notifs, setNotifs]           = useState(MOCK_NOTIFS);
-  const [toast, setToast]             = useState(null);
-
+  const [dateRange,    setDateRange]    = useState("Last 14 Days");
+  const [toast,        setToast]        = useState(null);
+  const [loading,      setLoading]      = useState(true);
   const t = mkT(dark);
+
+  useEffect(() => {
+    fetch(`${API}/clinic-risk/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => {
+        const list = data.clinics || data || [];
+        setClinics(list.map((c, idx) => ({
+          id:                 idx + 1,
+          name:               c.name,
+          score:              c.score,
+          trend:              c.trend === "up" ? "↑" : c.trend === "down" ? "↓" : "→",
+          issues:             c.issues || [],
+          coords:             getCoords(c.name),
+          bed_occupancy:      c.bedOccupancy      ?? null,
+          staff_availability: c.staffAvailability ?? null,
+          emergency_cases:    c.emergencyCases    ?? null,
+          absenteeism:        c.absenteeism       ?? null,
+          treatment_delay:    c.treatmentDelay    ?? null,
+          icu_pressure:       c.icuPressure       ?? null,
+        })));
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/notifications/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => setNotifs(data))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetch(`${API}/profile/`, { headers: authHeaders() })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => setProfile(data))
+      .catch(() => {});
+  }, []);
 
   const showToast = useCallback((msg, type="success") => {
     setToast({ msg, type });
@@ -1480,15 +1029,18 @@ export default function CNODashboard() {
   }, []);
 
   const handleLogout = useCallback(() => {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
     showToast("You have been signed out.", "info");
     setTimeout(() => navigate("/login"), 800);
   }, [showToast, navigate]);
 
   const filteredClinics = clinicFilter === "All Clinics"
-    ? CLINICS
-    : CLINICS.filter(c => c.name === clinicFilter);
+    ? clinics
+    : clinics.filter(c => c.name === clinicFilter);
 
-  const criticalCount = CLINICS.filter(c => c.score >= 0.75).length;
+  const criticalCount = clinics.filter(c => c.score >= 0.75).length;
+  const alertBadge    = { critical: criticalCount, total: clinics.filter(c => c.score >= 0.50).length };
 
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:t.pageBg, fontFamily:"'DM Sans',sans-serif", transition:"background .3s", overflow:"hidden" }}>
@@ -1505,111 +1057,101 @@ export default function CNODashboard() {
         @keyframes dropIn{from{opacity:0;transform:translateY(-8px);}to{opacity:1;transform:translateY(0);}}
         @keyframes pulse{0%,100%{transform:scale(1);opacity:.6;}50%{transform:scale(1.5);opacity:.15;}}
       `}</style>
-
       <Toast toast={toast}/>
-
-      <Sidebar
-        t={t} active={activeNav} setActive={setActiveNav}
-        collapsed={collapsed} setCollapsed={setCollapsed}
-        dark={dark} setDark={setDark}
-        onLogout={handleLogout}
-      />
-
+      <Sidebar t={t} active={activeNav} setActive={setActiveNav} collapsed={collapsed} setCollapsed={setCollapsed} dark={dark} setDark={setDark} onLogout={handleLogout} alertCount={alertBadge}/>
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-        <Header
-          t={t} dark={dark} setDark={setDark}
-          notifs={notifs} setNotifs={setNotifs}
-          clinicFilter={clinicFilter} setClinicFilter={setClinicFilter}
-          dateRange={dateRange} setDateRange={setDateRange}
-        />
+        <Header t={t} dark={dark} setDark={setDark} notifs={notifs} setNotifs={setNotifs} clinicFilter={clinicFilter} setClinicFilter={setClinicFilter} dateRange={dateRange} setDateRange={setDateRange} clinics={clinics} profile={profile}/>
 
-        <main style={{ flex:1, overflowY:"auto", padding:18, display:"flex", flexDirection:"column", gap:16 }}>
-
-          {/* Critical alert banner */}
-          {criticalCount > 0 && (
-            <div style={{ background:`${t.danger}12`, border:`1px solid ${t.danger}44`, borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:10, animation:"fadeUp .3s ease both" }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:t.danger, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
-              <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:t.danger }}>
-                {criticalCount} Critical Clinic{criticalCount>1?"s":""} Require Immediate Attention
-              </span>
-              <div style={{ marginLeft:"auto", fontSize:11, color:t.danger, fontWeight:600 }}>
-                {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})} · {new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}
-              </div>
+       <main style={{ flex:1, overflowY:"auto", padding:18, display:"flex", flexDirection:"column", gap:16 }}>
+  {(() => {
+    if (activeNav === "Risk Heatmap") return (
+      <Card t={t} title="Geographic Risk Distribution" sub="Full heatmap view" icon={IC.heatmap} iconColor={t.purple}>
+        <GeographicHeatmap t={t} clinics={filteredClinics}/>
+      </Card>
+    );
+    if (activeNav === "Alerts") return (
+      <>
+        <SummaryStats t={t} clinics={clinics}/>
+        <Card t={t} title="Active System Alerts" sub="Click an alert to expand recommended actions" icon={IC.alerts} iconColor={t.danger}>
+          <AlertsPanel t={t}/>
+        </Card>
+      </>
+    );
+    if (activeNav === "Reports") return (
+      <Card t={t} title="Recent Reports" sub="Latest submitted operational reports" icon={IC.reports} iconColor={t.accent}>
+        <RecentReports t={t} showToast={showToast}/>
+      </Card>
+    );
+    // Default: Dashboard
+    return (
+      <>
+        {criticalCount > 0 && (
+          <div style={{ background:`${t.danger}12`, border:`1px solid ${t.danger}44`, borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:10, animation:"fadeUp .3s ease both" }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:t.danger, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
+            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:t.danger }}>
+              {criticalCount} Critical Clinic{criticalCount>1?"s":""} Require Immediate Attention
+            </span>
+            <div style={{ marginLeft:"auto", fontSize:11, color:t.danger, fontWeight:600 }}>
+              {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})} · {new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}
             </div>
-          )}
-
-          {/* ── KPI Summary ── */}
-          <SummaryStats t={t} clinics={CLINICS}/>
-
-          {/* ── Clinic Performance Cards ── */}
-          <Card t={t} title="Clinic Performance Overview" sub={`${filteredClinics.length} facilities · ${dateRange}`} icon={IC.dashboard} iconColor={t.accent}
-            action={<span style={{ fontSize:11, color:t.textMt, background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:6, padding:"3px 9px" }}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}>
-            <ClinicCards t={t} clinics={filteredClinics} dark={dark}/>
-          </Card>
-
-          {/* ── Heatmap + Ranking ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 280px", gap:14, alignItems:"start" }}>
-            <Card t={t} title="Geographic Risk Distribution" sub="Hover a marker for clinic details" icon={IC.heatmap} iconColor={t.purple}>
-              <GeographicHeatmap t={t} clinics={filteredClinics}/>
-            </Card>
-            <Card t={t} title="Risk Ranking" sub="By instability score · EBM" icon={IC.activity} iconColor={t.danger}>
-              <ClinicRankingChart t={t} clinics={filteredClinics}/>
-              <div style={{ display:"flex", gap:12, marginTop:10, paddingTop:10, borderTop:`1px solid ${t.border}` }}>
-                <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
-                  <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.danger}` }}/> Critical ≥ 0.75
-                </span>
-                <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
-                  <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.warning}` }}/> High ≥ 0.50
-                </span>
-              </div>
-            </Card>
           </div>
-
-          {/* ── Trend Charts + Resource Monitor ── */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 260px", gap:14, alignItems:"start" }}>
-            <Card t={t} title="Operational Trend Analysis" sub={`${dateRange} · click a tab to switch metric`} icon={IC.trend} iconColor={t.success}
-              action={
-                <button style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:8, cursor:"pointer", fontSize:11, color:t.textSub, fontWeight:600, fontFamily:"'Syne',sans-serif" }}>
-                  <Ico d={IC.refresh} size={11} color={t.textSub}/> Refresh
-                </button>
-              }>
-              <TrendCharts t={t}/>
-            </Card>
-            <Card t={t} title="Resource Pressure" sub="System capacity indicators" icon={IC.alerts} iconColor={t.warning}>
-              <ResourceMonitor t={t}/>
-            </Card>
+        )}
+        {loading && (
+          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:10, padding:"12px 20px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:t.accent, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
+            <span style={{ fontSize:12, color:t.textSub, fontFamily:"'Syne',sans-serif" }}>Loading clinic data from server…</span>
           </div>
-
-          {/* ── Risk Drivers — full width, tabbed 48-KPI panel ── */}
-          <Card t={t} title="Clinical KPI Monitor" sub="9 categories · 48 indicators — click a category tab to explore" icon={IC.activity} iconColor={t.danger}>
-            <RiskDrivers t={t}/>
+        )}
+        <SummaryStats t={t} clinics={clinics}/>
+        <Card t={t} title="Clinic Performance Overview" sub={`${filteredClinics.length} facilities · ${dateRange}`} icon={IC.dashboard} iconColor={t.accent}
+          action={<span style={{ fontSize:11, color:t.textMt, background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:6, padding:"3px 9px" }}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}>
+          <ClinicCards t={t} clinics={filteredClinics} dark={dark}/>
+        </Card>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 280px", gap:14, alignItems:"start" }}>
+          <Card t={t} title="Geographic Risk Distribution" sub="Hover a marker for clinic details" icon={IC.heatmap} iconColor={t.purple}>
+            <GeographicHeatmap t={t} clinics={filteredClinics}/>
           </Card>
-
-          {/* ── Alerts — full width ── */}
-          <Card t={t} title="Active System Alerts" sub={`${ALERTS.length} alerts — click to expand recommended actions`} icon={IC.alerts} iconColor={t.danger}
+          <Card t={t} title="Risk Ranking" sub="By instability score · EBM" icon={IC.activity} iconColor={t.danger}>
+            <ClinicRankingChart t={t} clinics={filteredClinics}/>
+            <div style={{ display:"flex", gap:12, marginTop:10, paddingTop:10, borderTop:`1px solid ${t.border}` }}>
+              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
+                <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.danger}` }}/> Critical ≥ 0.75
+              </span>
+              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
+                <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.warning}` }}/> High ≥ 0.50
+              </span>
+            </div>
+          </Card>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 260px", gap:14, alignItems:"start" }}>
+          <Card t={t} title="Operational Trend Analysis" sub={`${dateRange} · click a tab to switch metric`} icon={IC.trend} iconColor={t.success}
             action={
-              <div style={{ display:"flex", gap:5 }}>
-                {[["critical",t.danger],["high",t.warning],["warning","#FFB020"]].map(([lv,cl]) => (
-                  <span key={lv} style={{ fontSize:10, fontWeight:700, background:`${cl}18`, border:`1px solid ${cl}33`, borderRadius:20, padding:"2px 7px", color:cl, fontFamily:"'Syne',sans-serif", textTransform:"uppercase" }}>
-                    {ALERTS.filter(a=>a.level===lv).length} {lv}
-                  </span>
-                ))}
-              </div>
+              <button onClick={() => window.location.reload()} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:8, cursor:"pointer", fontSize:11, color:t.textSub, fontWeight:600, fontFamily:"'Syne',sans-serif" }}>
+                <Ico d={IC.refresh} size={11} color={t.textSub}/> Refresh
+              </button>
             }>
-            <AlertsPanel t={t}/>
+            <TrendCharts t={t}/>
           </Card>
-
-          {/* ── Full Clinic Table ── */}
-          <Card t={t} title="Clinic Status Overview · All Facilities" sub="Color-coded KPI columns — red = critical, amber = warning" icon={IC.dashboard} iconColor={t.accent}>
-            <ClinicTable t={t} clinics={filteredClinics}/>
+          <Card t={t} title="Resource Pressure" sub="System capacity indicators" icon={IC.alerts} iconColor={t.warning}>
+            <ResourceMonitor t={t}/>
           </Card>
-
-          {/* ── Recent Reports ── */}
-          <Card t={t} title="Recent Reports" sub="Latest submitted operational reports" icon={IC.reports} iconColor={t.accent}>
-            <RecentReports t={t} showToast={showToast}/>
-          </Card>
-
-        </main>
+        </div>
+        <Card t={t} title="Clinical KPI Monitor" sub="Live indicators — click a category tab to explore" icon={IC.activity} iconColor={t.danger}>
+          <KpiMonitor t={t}/>
+        </Card>
+        <Card t={t} title="Active System Alerts" sub="Click an alert to expand recommended actions" icon={IC.alerts} iconColor={t.danger}>
+          <AlertsPanel t={t}/>
+        </Card>
+        <Card t={t} title="Clinic Status Overview · All Facilities" sub="Color-coded KPI columns — red = critical, amber = warning" icon={IC.dashboard} iconColor={t.accent}>
+          <ClinicTable t={t} clinics={filteredClinics}/>
+        </Card>
+        <Card t={t} title="Recent Reports" sub="Latest submitted operational reports" icon={IC.reports} iconColor={t.accent}>
+          <RecentReports t={t} showToast={showToast}/>
+        </Card>
+      </>
+    );
+  })()}
+</main>
       </div>
     </div>
   );
