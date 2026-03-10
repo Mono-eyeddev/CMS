@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/api";
 import { submitKPI } from "../api/kpi";
+
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const mkTheme = (dark) => ({
   pageBg:      dark ? "#020d1f"                    : "#EEF2F7",
@@ -31,20 +32,7 @@ const mkTheme = (dark) => ({
 });
 
 // ─── MOCK DATA ─────────────────────────────────────────────────────────────────
-const MOCK_NOTIFS = [
-  { id:1, type:"warning", title:"Submission Reminder",    body:"Today's KPI report is due at 6:30 PM.",       time:"2h ago",  read:false },
-  { id:2, type:"success", title:"Report Approved",        body:"March 3rd report approved by CNO.",           time:"Yesterday",read:false },
-  { id:3, type:"danger",  title:"Missing KPIs Flagged",   body:"March 2nd report flagged — incomplete data.", time:"2d ago",  read:true  },
-  { id:4, type:"info",    title:"System Maintenance",     body:"Scheduled downtime Sunday 2–4 AM.",           time:"3d ago",  read:true  },
-];
 
-const MOCK_HISTORY = [
-  { id:1, date:"Today",       status:"draft",   note:"Saved draft — not submitted" },
-  { id:2, date:"Yesterday",   status:"success", note:"Submitted 6:22 PM"           },
-  { id:3, date:"2 days ago",  status:"failed",  note:"Missing KPIs"                },
-  { id:4, date:"3 days ago",  status:"success", note:"Submitted 5:58 PM"           },
-  { id:5, date:"4 days ago",  status:"success", note:"Submitted 6:15 PM"           },
-];
 
 const DEFAULT_KPI = {
 
@@ -255,6 +243,7 @@ const Ico = ({ d, size=18, color="currentColor", stroke=2 }) => (
   </svg>
 );
 
+
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
 function useOutsideClick(ref, handler) {
   useEffect(() => {
@@ -263,7 +252,17 @@ function useOutsideClick(ref, handler) {
     return () => document.removeEventListener("mousedown", listener);
   }, [ref, handler]);
 }
-
+function useBreakpoint() {
+  const [width, setWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200
+  );
+  useEffect(() => {
+    const handler = () => setWidth(window.innerWidth);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+  return { isMobile: width < 640, isTablet: width >= 640 && width < 1024 };
+}
 // ─── COUNTDOWN TIMER ─────────────────────────────────────────────────────────
 function useDeadlineCountdown() {
   const [timeLeft, setTimeLeft] = useState("");
@@ -358,10 +357,65 @@ function Toast({ toast }) {
 // ─── NOTIFICATION PANEL ───────────────────────────────────────────────────────
 function NotifPanel({ t, notifs, setNotifs, onClose }) {
   const ref = useRef();
+  const { isMobile } = useBreakpoint();
   useOutsideClick(ref, onClose);
   const unread = notifs.filter(n=>!n.read).length;
-  const typeIcon = { warning:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01", success:"M20 6L9 17l-5-5", danger:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01", info:"M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 16v-4M12 8h.01" };
+  const typeIcon = {
+    warning:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01",
+    success:"M20 6L9 17l-5-5",
+    danger:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01",
+    info:"M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 16v-4M12 8h.01"
+  };
   const typeColor = { warning:t.warning, success:t.success, danger:t.danger, info:t.accent };
+
+  if (isMobile) return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.5)", zIndex:998, backdropFilter:"blur(3px)", animation:"fadeIn .2s ease both" }}/>
+      {/* Bottom sheet */}
+      <div ref={ref} style={{ position:"fixed", bottom:0, left:0, right:0, background:t.popBg, borderRadius:"20px 20px 0 0", boxShadow:"0 -8px 40px rgba(0,0,0,0.4)", zIndex:999, animation:"slideUp .3s cubic-bezier(.4,0,.2,1) both", maxHeight:"80vh", display:"flex", flexDirection:"column" }}>
+        {/* Drag handle */}
+        <div style={{ display:"flex", justifyContent:"center", padding:"12px 0 4px" }}>
+          <div style={{ width:"40px", height:"4px", borderRadius:"2px", background:t.border }}/>
+        </div>
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 20px 14px", borderBottom:`1px solid ${t.border}` }}>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:"16px", color:t.text }}>Notifications</div>
+          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+            {unread>0 && <span style={{ background:t.accent, color:"#fff", borderRadius:"20px", padding:"2px 10px", fontSize:"11px", fontWeight:700 }}>{unread} new</span>}
+            <button onClick={()=>setNotifs(n=>n.map(x=>({...x,read:true})))} style={{ fontSize:"12px", color:t.accent, background:"none", border:"none", cursor:"pointer", fontWeight:600 }}>Mark all read</button>
+          </div>
+        </div>
+        {/* List */}
+        <div style={{ overflowY:"auto", flex:1 }}>
+          {notifs.map(n=>(
+            <div key={n.id} onClick={()=>setNotifs(prev=>prev.map(x=>x.id===n.id?{...x,read:true}:x))}
+              style={{ display:"flex", gap:"14px", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, cursor:"pointer", background:n.read?"transparent":t.accentGl }}>
+              <div style={{ width:"38px", height:"38px", borderRadius:"10px", background:typeColor[n.type]+"18", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <Ico d={typeIcon[n.type]} size={16} color={typeColor[n.type]}/>
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"13px", fontWeight:700, color:t.text, marginBottom:"3px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                  <span>{n.title}</span>
+                  {!n.read && <span style={{ width:"8px", height:"8px", borderRadius:"50%", background:t.accent, display:"inline-block", flexShrink:0 }}/>}
+                </div>
+                <div style={{ fontSize:"13px", color:t.textSub, lineHeight:1.5 }}>{n.body}</div>
+                <div style={{ fontSize:"11px", color:t.textMt, marginTop:"5px" }}>{n.time}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Footer */}
+        <div style={{ padding:"16px 20px", borderTop:`1px solid ${t.border}`, paddingBottom:"calc(16px + env(safe-area-inset-bottom))" }}>
+          <button onClick={onClose} style={{ width:"100%", padding:"13px", background:t.accentGl, border:`1px solid ${t.accent}33`, borderRadius:"12px", color:t.accent, fontSize:"14px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
+            Close
+          </button>
+        </div>
+      </div>
+    </>
+  );
+
+  // Desktop dropdown (unchanged)
   return (
     <div ref={ref} style={{ position:"absolute", top:"calc(100% + 10px)", right:0, width:"340px", background:t.popBg, border:`1px solid ${t.borderSt}`, borderRadius:"16px", boxShadow:t.popShadow, zIndex:500, overflow:"hidden", animation:"dropIn .2s ease both" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"14px 18px", borderBottom:`1px solid ${t.border}`, background:t.cardHd }}>
@@ -461,9 +515,13 @@ function SettingsPanel({ t, dark, setDark, onClose }) {
 }
 
 // ─── PROFILE PANEL ────────────────────────────────────────────────────────────
-function ProfilePanel({ t, onLogout, onClose }) {
-  const ref = useRef();
+function ProfilePanel({ t, me, onLogout, onClose }) {
+    const ref      = useRef();
+  const initial  = me?.first_name?.[0] || me?.username?.[0] || "M";
+  const email    = me?.email         || "";
+  const clinic   = me?.clinic?.name  || "";
   useOutsideClick(ref, onClose);
+
   const menuItems = [
     { icon:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", label:"My Profile",    color:t.accent   },
     { icon:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6",          label:"My Reports",    color:t.success  },
@@ -474,9 +532,12 @@ function ProfilePanel({ t, onLogout, onClose }) {
     <div ref={ref} style={{ position:"absolute", top:"calc(100% + 10px)", right:0, width:"260px", background:t.popBg, border:`1px solid ${t.borderSt}`, borderRadius:"16px", boxShadow:t.popShadow, zIndex:500, overflow:"hidden", animation:"dropIn .2s ease both" }}>
       {/* Profile header */}
       <div style={{ padding:"18px", background:`linear-gradient(135deg, ${t.accent}22, ${t.accentDk}11)`, borderBottom:`1px solid ${t.border}`, textAlign:"center" }}>
-        <div style={{ width:"56px", height:"56px", borderRadius:"50%", background:`linear-gradient(135deg,${t.accent},${t.accentDk})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px", fontSize:"22px", fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:`0 6px 20px ${t.accent}44` }}>M</div>
-        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:"15px", color:t.text }}>Clinical Manager</div>
-        <div style={{ fontSize:"12px", color:t.textSub, marginTop:"3px" }}>manager@clinic.gov</div>
+        <div style={{ width:"56px", height:"56px", borderRadius:"50%", background:`linear-gradient(135deg,${t.accent},${t.accentDk})`, display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 10px", fontSize:"22px", fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:`0 6px 20px ${t.accent}44` }}>{initial}</div>
+        <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:"15px", color:t.text }}>
+  {me?.first_name ? `${me.first_name} ${me.last_name}`.trim() : me?.username || "Manager"}
+</div>
+        <div style={{ fontSize:"12px", color:t.textSub, marginTop:"3px" }}>{email}</div>
+        <div style={{ fontSize:"11px", color:t.textMt, marginTop:"2px" }}>{clinic}</div>
         <div style={{ marginTop:"8px", display:"inline-flex", alignItems:"center", gap:"5px", background:t.success+"18", border:`1px solid ${t.success}44`, borderRadius:"20px", padding:"4px 10px" }}>
           <span style={{ width:"6px", height:"6px", borderRadius:"50%", background:t.success, display:"inline-block" }}/>
           <span style={{ fontSize:"11px", color:t.success, fontWeight:700 }}>Active</span>
@@ -509,12 +570,12 @@ function ProfilePanel({ t, onLogout, onClose }) {
 
 // ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 function Sidebar({ t, active, setActive, collapsed, setCollapsed, mobileOpen, setMobileOpen, dark, setDark, onLogout }) {
-  const navItems = [
-    { label:"Dashboard",          icon:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" },
-    { label:"Submit Report",      icon:"M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" },
-    { label:"Submission History", icon:"M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" },
-    { label:"Reports",            icon:"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8" },
-  ];
+const navItems = [
+  { label:"Dashboard",          component:"dashboard", icon:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" },
+  { label:"Submit Report",      component:"form",      icon:"M11 5H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" },
+  { label:"Submission History", component:"history",   icon:"M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" },
+  { label:"Staff",              component:"staff",     icon:"M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" },
+];
   const w = collapsed ? "68px" : "240px";
   return (
     <>
@@ -652,10 +713,10 @@ function Sidebar({ t, active, setActive, collapsed, setCollapsed, mobileOpen, se
         {/* Nav items */}
         <nav style={{ display:"flex", flexDirection:"column", gap:"2px", flex:1 }}>
           {navItems.map(item=>{
-            const isAct = active===item.label;
+            const isAct = active===item.component;
             return (
               <button key={item.label}
-                onClick={()=>{ setActive(item.label); setMobileOpen(false); }}
+                onClick={()=>{ setActive(item.component); setMobileOpen(false); }}
                 title={collapsed?item.label:""}
                 style={{ display:"flex", alignItems:"center", gap:collapsed?0:"10px", justifyContent:collapsed?"center":"flex-start", padding:collapsed?"11px":"10px 12px", borderRadius:"10px", background:isAct?t.accent+"18":"transparent", borderLeft:!collapsed&&isAct?`3px solid ${t.accent}`:"3px solid transparent", paddingLeft:!collapsed&&isAct?"10px":collapsed?undefined:"12px", border:"none", cursor:"pointer", color:isAct?t.accent:t.textSub, fontSize:"13px", fontFamily:"'DM Sans',sans-serif", textAlign:"left", transition:"all .2s", width:"100%", overflow:"hidden", whiteSpace:"nowrap" }}>
                 <div style={{ flexShrink:0 }}><Ico d={item.icon} size={16} color={isAct?t.accent:t.textSub}/></div>
@@ -687,7 +748,7 @@ function Sidebar({ t, active, setActive, collapsed, setCollapsed, mobileOpen, se
 }
 
 // ─── HEADER ───────────────────────────────────────────────────────────────────
-function Header({ t, dark, setDark, notifs, setNotifs, mobileOpen, setMobileOpen }) {
+function Header({ t, dark, setDark, notifs, setNotifs, mobileOpen, setMobileOpen, me }) {
   const [showNotif, setShowNotif] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
@@ -746,7 +807,7 @@ function Header({ t, dark, setDark, notifs, setNotifs, mobileOpen, setMobileOpen
             style={{ width:"38px", height:"38px", borderRadius:"10px", background:`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:`2px solid ${showProfile?t.accent:t.border}`, display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", fontSize:"15px", fontWeight:800, color:"#fff", fontFamily:"'Syne',sans-serif", boxShadow:showProfile?`0 4px 16px ${t.accent}44`:"none", transition:"all .2s" }}>
             M
           </button>
-          {showProfile && <ProfilePanel t={t} onLogout={()=>navigate("/login")} onClose={()=>setShowProfile(false)}/>}
+          {showProfile && <ProfilePanel t={t} me={me} onLogout={()=>navigate("/login")} onClose={()=>setShowProfile(false)}/>}
         </div>
       </div>
     </header>
@@ -915,7 +976,7 @@ function KPIForm({ t, kpi, setKpi, formState }) {
 }
 
 // ─── HISTORY TABLE ────────────────────────────────────────────────────────────
-function HistoryTable({ t, history }) {
+function HistoryTable({ t, history, setSelectedReport }) {
   return (
     <div style={{ overflowX:"auto" }}>
       <table style={{ width:"100%", borderCollapse:"separate", borderSpacing:"0 4px" }}>
@@ -927,17 +988,38 @@ function HistoryTable({ t, history }) {
           </tr>
         </thead>
         <tbody>
-          {history.map((row,i)=>(
-            <tr key={row.id} style={{ animation:`fadeUp .4s ease both`, animationDelay:`${i*.05}s` }}>
-              <td style={{ padding:"11px 16px", background:t.rowBg, borderRadius:"9px 0 0 9px", border:`1px solid ${t.border}`, borderRight:"none", fontSize:"13px", fontWeight:600, color:t.text, fontFamily:"'Syne',sans-serif", whiteSpace:"nowrap" }}>{row.date}</td>
-              <td style={{ padding:"11px 16px", background:t.rowBg, border:`1px solid ${t.border}`, borderLeft:"none", borderRight:"none" }}><Badge status={row.status} t={t}/></td>
-              <td style={{ padding:"11px 16px", background:t.rowBg, border:`1px solid ${t.border}`, borderLeft:"none", borderRight:"none", fontSize:"12px", color:t.textSub }}>{row.note}</td>
-              <td style={{ padding:"11px 16px", background:t.rowBg, borderRadius:"0 9px 9px 0", border:`1px solid ${t.border}`, borderLeft:"none" }}>
-                <button style={{ fontSize:"11px", fontWeight:700, color:t.accent, background:t.accentGl, border:`1px solid ${t.accent}33`, borderRadius:"7px", padding:"4px 12px", cursor:"pointer", fontFamily:"'Syne',sans-serif" }}>View</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
+  {history.map((row,i)=>(
+    <tr key={row.id} style={{ animation:`fadeUp .4s ease both`, animationDelay:`${i*.05}s` }}>
+      <td style={{ padding:"11px 16px", background:t.rowBg, borderRadius:"9px 0 0 9px", border:`1px solid ${t.border}`, borderRight:"none", fontSize:"13px", fontWeight:600, color:t.text, fontFamily:"'Syne',sans-serif", whiteSpace:"nowrap" }}>
+        {row.shift_date}
+      </td>
+
+      <td style={{ padding:"11px 16px", background:t.rowBg, border:`1px solid ${t.border}`, borderLeft:"none", borderRight:"none" }}>
+        <Badge status={row.status} t={t}/>
+      </td>
+
+      <td style={{ padding:"11px 16px", background:t.rowBg, border:`1px solid ${t.border}`, borderLeft:"none", borderRight:"none", fontSize:"12px", color:t.textSub }}>
+        {row.comments || "No notes"}
+      </td>
+
+      <td style={{ padding:"11px 16px", background:t.rowBg, borderRadius:"0 9px 9px 0", border:`1px solid ${t.border}`, borderLeft:"none" }}>
+        <button   onClick={() => setSelectedReport(row)}
+  style={{
+    fontSize:"11px",
+    fontWeight:700,
+    color:t.accent,
+    background:t.accentGl,
+    border:`1px solid ${t.accent}33`,
+    borderRadius:"7px",
+    padding:"4px 12px",
+    cursor:"pointer",
+    fontFamily:"'Syne',sans-serif"
+  }}> View
+        </button>
+      </td>
+    </tr>
+  ))}
+</tbody>
       </table>
     </div>
   );
@@ -947,17 +1029,48 @@ function HistoryTable({ t, history }) {
 export default function Manager() {
   const navigate = useNavigate();
   const [dark, setDark]         = useState(true);
-  const [activeNav, setActiveNav] = useState("Submit Report");
+  const [activeNav, setActiveNav] = useState("dashboard");
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [kpi, setKpi]           = useState(DEFAULT_KPI);
   const [formState, setFormState] = useState("idle"); // idle | draft | submitted | submitting
-  const [history, setHistory]   = useState(MOCK_HISTORY);
-  const [notifs, setNotifs]     = useState(MOCK_NOTIFS);
+  const [history, setHistory]   = useState([]);
+  const [notifs, setNotifs]     = useState([]);
   const [toast, setToast]       = useState(null);
   const [staff, setStaff]       = useState([]);
+  const [selectedReport, setSelectedReport] = useState(null);
   const [staffLoading, setStaffLoading] = useState(true);
   const t = mkTheme(dark);
+
+const [me, setMe] = useState(null);
+
+// Derive from me
+const clinicName = me?.clinic?.name || "Loading...";
+const userEmail  = me?.email        || "Loading...";
+const fullName   = me?.first_name
+                   ? `${me.first_name} ${me.last_name}`.trim()
+                   : me?.username   || "Manager";
+
+// Fetch profile — runs once on mount
+useEffect(() => {
+  api.get("/api/auth/manager/me/")
+    .then(res => setMe(res.data))
+    .catch(() => {}); // silent fail, values fall back to "Loading..."
+}, []);
+
+const fetchHistory = async () => {
+  try {
+    const res = await api.get("/api/auth/manager/history/");
+    // Add status:"success" since all fetched entries are submitted reports
+    setHistory(res.data.map(item => ({ ...item, status: "success" })));
+  } catch (err) {
+    console.error("Failed to fetch history:", err);
+  }
+};
+
+useEffect(() => {
+  fetchHistory();
+}, []);
 
   const showToast = useCallback((msg, type="success") => {
     setToast({msg,type});
@@ -966,11 +1079,68 @@ export default function Manager() {
 
   const allFilled = () => KPI_BLOCKS.every(b=>b.fields.every(f=>f.type==="select"||kpi[f.key]!==""));
 
-  const handleSaveDraft = () => {
-    localStorage.setItem("cims_kpi_draft", JSON.stringify(kpi));
-    setFormState("draft");
-    showToast("Draft saved locally.", "info");
+ const handleSaveDraft = () => {
+  localStorage.setItem("cims_kpi_draft", JSON.stringify(kpi));
+
+  // Check if there's already a draft entry in history to avoid duplicates
+  const existingDraftIndex = history.findIndex(h => h.status === "draft");
+
+  const draftEntry = {
+    id:                       "draft-" + Date.now(),
+    shift_date:               new Date().toLocaleDateString("en-US", {
+                                month: "short", day: "numeric", year: "numeric"
+                              }),
+    shift:                    shiftLabel === "Day Shift" ? "DAY" : "NIGHT",
+    status:                   "draft",
+    comments:                 kpi.comments || "Draft — not yet submitted",
+
+    total_patients:           Number(kpi.total_patients) || 0,
+    new_cases:                Number(kpi.new_cases) || 0,
+    emergency_cases:          Number(kpi.emergency_cases) || 0,
+    critical_cases:           Number(kpi.critical_cases) || 0,
+    icu_transfers:            Number(kpi.icu_transfers) || 0,
+    mortality_count:          Number(kpi.mortality_count) || 0,
+
+    staff_on_duty:            Number(kpi.staff_on_duty) || 0,
+    nurses_absent:            Number(kpi.nurses_absent) || 0,
+    overtime_hours:           Number(kpi.overtime_hours) || 0,
+
+    unattended_critical_cases: Number(kpi.unattended_critical_cases) || 0,
+
+    power_outage_hours:       Number(kpi.power_outage_hours) || 0,
+    internet_downtime_hours:  Number(kpi.internet_downtime_hours) || 0,
+
+    malaria_cases:            Number(kpi.malaria_cases) || 0,
+    cholera_cases:            Number(kpi.cholera_cases) || 0,
+    respiratory_cases:        Number(kpi.respiratory_cases) || 0,
+
+    triage_wait_time:         Number(kpi.triage_wait_time) || 0,
+    lab_turnaround_time:      Number(kpi.lab_turnaround_time) || 0,
+    pharmacy_wait_time:       Number(kpi.pharmacy_wait_time) || 0,
+
+    stockout_oxygen:          kpi.stockout_oxygen === "Yes",
+    stockout_essential_drugs: kpi.stockout_essential_drugs === "Yes",
+
+    bed_occupancy_rate:       Number(kpi.bed_occupancy_rate) || 0,
+    readmission_rate:         Number(kpi.readmission_rate) || 0,
+    patient_complaints:       Number(kpi.patient_complaints) || 0,
   };
+
+  if (existingDraftIndex !== -1) {
+    // Replace the existing draft entry instead of adding a new one
+    setHistory(prev => {
+      const updated = [...prev];
+      updated[existingDraftIndex] = draftEntry;
+      return updated;
+    });
+  } else {
+    // No draft yet — prepend a new one
+    setHistory(prev => [draftEntry, ...prev]);
+  }
+
+  setFormState("draft");
+  showToast("Draft saved.", "info");
+};
 
 const { timeLeft, urgent, shiftLabel } = useDeadlineCountdown();
 
@@ -983,70 +1153,113 @@ const handleSubmit = async () => {
   const data = {
     shift: shiftLabel === "Day Shift" ? "DAY" : "NIGHT",
 
-    total_patients: Number(kpi.total_patients),
-    new_cases: Number(kpi.new_cases),
-    emergency_cases: Number(kpi.emergency_cases),
-    critical_cases: Number(kpi.critical_cases),
-    icu_transfers: Number(kpi.icu_transfers),
-    mortality_count: Number(kpi.mortality_count),
+    total_patients:             Number(kpi.total_patients),
+    new_cases:                  Number(kpi.new_cases),
+    emergency_cases:            Number(kpi.emergency_cases),
+    critical_cases:             Number(kpi.critical_cases),
+    icu_transfers:              Number(kpi.icu_transfers),
+    mortality_count:            Number(kpi.mortality_count),
 
-    staff_on_duty: Number(kpi.staff_on_duty),
-    nurses_absent: Number(kpi.nurses_absent),
-    overtime_hours: Number(kpi.overtime_hours),
+    staff_on_duty:              Number(kpi.staff_on_duty),
+    nurses_absent:              Number(kpi.nurses_absent),
+    overtime_hours:             Number(kpi.overtime_hours),
 
-    unattended_critical_cases: Number(kpi.unattended_critical_cases),
+    unattended_critical_cases:  Number(kpi.unattended_critical_cases),
 
-    power_outage_hours: Number(kpi.power_outage_hours),
-    internet_downtime_hours: Number(kpi.internet_downtime_hours),
+    power_outage_hours:         Number(kpi.power_outage_hours),
+    internet_downtime_hours:    Number(kpi.internet_downtime_hours),
 
-    malaria_cases: Number(kpi.malaria_cases),
-    cholera_cases: Number(kpi.cholera_cases),
-    respiratory_cases: Number(kpi.respiratory_cases),
+    malaria_cases:              Number(kpi.malaria_cases),
+    cholera_cases:              Number(kpi.cholera_cases),
+    respiratory_cases:          Number(kpi.respiratory_cases),
 
-    triage_wait_time: Number(kpi.triage_wait_time),
-    lab_turnaround_time: Number(kpi.lab_turnaround_time),
-    pharmacy_wait_time: Number(kpi.pharmacy_wait_time),
+    triage_wait_time:           Number(kpi.triage_wait_time),
+    lab_turnaround_time:        Number(kpi.lab_turnaround_time),
+    pharmacy_wait_time:         Number(kpi.pharmacy_wait_time),
 
-    stockout_oxygen: kpi.stockout_oxygen === "Yes",
-    stockout_essential_drugs: kpi.stockout_essential_drugs === "Yes",
+    stockout_oxygen:            kpi.stockout_oxygen === "Yes",
+    stockout_essential_drugs:   kpi.stockout_essential_drugs === "Yes",
 
-    bed_occupancy_rate: Number(kpi.bed_occupancy_rate),
-    readmission_rate: Number(kpi.readmission_rate),
-    patient_complaints: Number(kpi.patient_complaints),
+    bed_occupancy_rate:         Number(kpi.bed_occupancy_rate),
+    readmission_rate:           Number(kpi.readmission_rate),
+    patient_complaints:         Number(kpi.patient_complaints),
 
     comments: kpi.comments,
   };
 
+  setFormState("submitting");
+
   try {
-    setFormState("submitting");
+    const response = await submitKPI(data);
 
-    await submitKPI(data);
+    // Build  matches the shape fetchHistory returns,
+    //"Submitted" counter and the detail modal both work 
+    const newEntry = {
+      // Use the id the server hands back if available, otherwise a temp id
+      id:                       response?.data?.id ?? Date.now(),
+      shift_date:               new Date().toLocaleDateString("en-US", {
+                                  month: "short", day: "numeric", year: "numeric"
+                                }),
+      shift:                    data.shift,
+      status:                   "success",
+      comments:                 kpi.comments,
 
+      // Mirror every numeric field so the "View" modal can display them
+      total_patients:           data.total_patients,
+      new_cases:                data.new_cases,
+      emergency_cases:          data.emergency_cases,
+      critical_cases:           data.critical_cases,
+      icu_transfers:            data.icu_transfers,
+      mortality_count:          data.mortality_count,
+
+      staff_on_duty:            data.staff_on_duty,
+      nurses_absent:            data.nurses_absent,
+      overtime_hours:           data.overtime_hours,
+
+      unattended_critical_cases: data.unattended_critical_cases,
+
+      power_outage_hours:       data.power_outage_hours,
+      internet_downtime_hours:  data.internet_downtime_hours,
+
+      malaria_cases:            data.malaria_cases,
+      cholera_cases:            data.cholera_cases,
+      respiratory_cases:        data.respiratory_cases,
+
+      triage_wait_time:         data.triage_wait_time,
+      lab_turnaround_time:      data.lab_turnaround_time,
+      pharmacy_wait_time:       data.pharmacy_wait_time,
+
+      stockout_oxygen:          data.stockout_oxygen,
+      stockout_essential_drugs: data.stockout_essential_drugs,
+
+      bed_occupancy_rate:       data.bed_occupancy_rate,
+      readmission_rate:         data.readmission_rate,
+      patient_complaints:       data.patient_complaints,
+    };
+
+    // Prepend to history — counter updates instantly, no refetch needed
+    setHistory(prev => [newEntry, ...prev]);
     setFormState("submitted");
-
-    setHistory((prev) => [
-      {
-        id: Date.now(),
-        date: "Just now",
-        status: "success",
-        note: `${shiftLabel} submitted at ${new Date().toLocaleTimeString()}`,
-      },
-      ...prev,
-    ]);
-
-    showToast(`${shiftLabel} report submitted successfully!`);
+    showToast(`${shiftLabel} report submitted successfully!`, "success");
 
   } catch (error) {
     setFormState("idle");
 
-    if (error.message.includes("already submitted")) {
+    const msg = error?.response?.data?.detail || error?.message || "";
+
+    if (msg.toLowerCase().includes("already submitted")) {
       showToast(`You have already submitted the ${shiftLabel} report.`, "error");
+      // Mark as submitted so the button disables correctly
+      setFormState("submitted");
     } else {
       showToast("Submission failed. Please try again.", "error");
     }
   }
 };
    
+
+
+
   const handleClear = () => { setKpi(DEFAULT_KPI); setFormState("idle"); showToast("Form cleared.", "info"); };
 
   // Load draft on mount
@@ -1067,7 +1280,7 @@ useEffect(() => {
     try {
       const response = await fetch("api/auth/manager/kpi/check-submission/", {
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("access")}`,
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
         },
       });
       const data = await response.json();
@@ -1081,11 +1294,331 @@ useEffect(() => {
   checkSubmission();
 }, []);
 
-
   const totalFilled = KPI_BLOCKS.reduce((acc,b)=>acc+b.fields.filter(f=>f.type==="select"||kpi[f.key]!=="").length, 0);
   const totalFields = KPI_BLOCKS.reduce((acc,b)=>acc+b.fields.length, 0);
   const progress = Math.round((totalFilled/totalFields)*100);
+  const renderContent = () => {
 
+  if (activeNav === "history") return (
+    <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+        <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Ico d="M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" size={17} color={t.accent}/>
+        </div>
+        <div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Submission History</div>
+          <div style={{ fontSize:"11px", color:t.textSub }}>{history.length} recent entries</div>
+        </div>
+      </div>
+      <div style={{ padding:"14px 18px" }}>
+        <HistoryTable
+  t={t}
+  history={history}
+  setSelectedReport={setSelectedReport}
+/>
+      </div>
+    </div>
+  );
+
+  if (activeNav === "staff") return (
+    <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
+      <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+        <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Ico d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" size={17} color={t.accent}/>
+        </div>
+        <div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Clinic Staff</div>
+          <div style={{ fontSize:"11px", color:t.textSub }}>
+            {staffLoading ? "Loading…" : `${staff.length} staff member${staff.length !== 1 ? "s" : ""}`}
+          </div>
+        </div>
+      </div>
+      <div style={{ padding:"14px 18px", overflowX:"auto" }}>
+        {staffLoading ? (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"32px", gap:"10px", color:t.textSub, fontSize:"13px" }}>
+            <span style={{ width:"16px", height:"16px", border:`2px solid ${t.border}`, borderTop:`2px solid ${t.accent}`, borderRadius:"50%", display:"inline-block", animation:"spin .7s linear infinite" }}/>
+            Loading staff…
+          </div>
+        ) : staff.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"32px", color:t.textMt, fontSize:"13px", fontStyle:"italic" }}>No staff found</div>
+        ) : (
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+            <thead>
+              <tr>
+                {["Name","Role","Qualification","Training Coverage"].map(h=>(
+                  <th key={h} style={{ textAlign:"left", padding:"9px 14px", color:t.textMt, fontWeight:700, fontSize:"10px", letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", borderBottom:`1px solid ${t.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {staff.map((s, i) => (
+                <tr key={s.id}
+                  style={{ background: i%2===0 ? "transparent" : t.rowBg, transition:"background .15s" }}
+                  onMouseEnter={e => e.currentTarget.style.background = t.accentGl}
+                  onMouseLeave={e => e.currentTarget.style.background = i%2===0 ? "transparent" : t.rowBg}>
+                  <td style={{ padding:"11px 14px", fontWeight:600, color:t.text, whiteSpace:"nowrap" }}>{s.name}</td>
+                  <td style={{ padding:"11px 14px", color:t.textSub }}>{s.role}</td>
+                  <td style={{ padding:"11px 14px", color:t.textSub }}>{s.qualification}</td>
+                  <td style={{ padding:"11px 14px" }}>
+                    <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", background: s.training_coverage ? t.success+"18" : t.danger+"12", border:`1px solid ${s.training_coverage ? t.success+"44" : t.danger+"33"}`, borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:700, color: s.training_coverage ? t.success : t.danger, fontFamily:"'Syne',sans-serif" }}>
+                      <span style={{ width:"5px", height:"5px", borderRadius:"50%", background: s.training_coverage ? t.success : t.danger, display:"inline-block" }}/>
+                      {s.training_coverage ? "Yes" : "No"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+
+  if (activeNav === "form") return (
+    <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:"18px", alignItems:"start" }}>
+      <div>
+        <KPIForm t={t} kpi={kpi} setKpi={setKpi} formState={formState}/>
+        <div style={{ display:"flex", gap:"12px", justifyContent:"flex-end", marginTop:"18px", paddingTop:"16px", borderTop:`1px solid ${t.border}` }}>
+          <button onClick={handleClear} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 22px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:"10px", color:t.textSub, fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
+            <Ico d="M18 6L6 18M6 6l12 12" size={14} color={t.textSub}/>Clear
+          </button>
+          <button onClick={handleSaveDraft} disabled={formState==="submitting"} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 22px", background:t.warning+"15", border:`1px solid ${t.warning}44`, borderRadius:"10px", color:t.warning, fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
+            <Ico d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" size={14} color={t.warning}/>Save Draft
+          </button>
+          <button onClick={handleSubmit} disabled={formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"}
+            style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 26px", background:formState==="submitted"?t.success+"99":timeLeft==="Deadline passed"?t.danger+"99":`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"?"not-allowed":"pointer", boxShadow:`0 6px 20px ${t.accent}44` }}>
+            {formState==="submitting" ? (<><span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,.3)", borderTop:"2px solid #fff", borderRadius:"50%", animation:"spin .7s linear infinite", display:"inline-block" }}/> Submitting…</>)
+            : formState==="submitted" ? (<><Ico d="M20 6L9 17l-5-5" size={14} color="#fff" stroke={2.5}/> Submitted!</>)
+            : timeLeft==="Deadline passed" ? (<><Ico d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" size={14} color="#fff"/> Deadline Passed</>)
+            : (<><Ico d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" size={14} color="#fff"/> Submit Final</>)}
+          </button>
+        </div>
+      </div>
+      <div style={{ display:"flex", flexDirection:"column", gap:"14px", position:"sticky", top:"16px" }}>
+        <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
+          <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.textMt }}>Report Info</div>
+          </div>
+          <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:"10px"}}>
+            {[
+              { label:"Clinic",   value:clinicName, icon:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" },
+              { label:"Manager",  value:userEmail,  icon:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
+              { label:"Date",     value:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), icon:"M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" },
+              { label:"Deadline", value:"End of shift", icon:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
+            ].map(item=>(
+              <div key={item.label} style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                <div style={{ width:"28px", height:"28px", borderRadius:"7px", background:t.accentGl, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <Ico d={item.icon} size={13} color={t.accent}/>
+                </div>
+                <div>
+                  <div style={{ fontSize:"10px", color:t.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", fontFamily:"'Syne',sans-serif" }}>{item.label}</div>
+                  <div style={{ fontSize:"13px", fontWeight:600, color:t.text }}>{item.value}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
+          <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>How to Submit</div>
+          </div>
+          <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
+            {[
+              { c:t.accent,  txt:"Date and clinic are auto-filled — do not change." },
+              { c:t.success, txt:"Fill all 5 blocks completely." },
+              { c:t.warning, txt:"Save draft anytime to preserve progress." },
+              { c:"#A855F7", txt:"Submit Final once all fields are complete." },
+              { c:t.danger,  txt:"Must be submitted before end of shift" },
+            ].map((s,i)=>(
+              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:"9px", padding:"9px 11px", background:s.c+"0a", border:`1px solid ${s.c}22`, borderRadius:"9px" }}>
+                <span style={{ width:"6px", height:"6px", borderRadius:"50%", background:s.c, marginTop:"5px", flexShrink:0, display:"inline-block" }}/>
+                <p style={{ fontSize:"12px", color:t.textSub, lineHeight:1.5, margin:0 }}>{s.txt}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // DASHBOARD — default, shows everything
+  return (
+    <>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"10px" }}>
+        <div>
+          <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:"20px", fontWeight:800, color:t.text }}>Daily KPI Report</h2>
+          <p style={{ fontSize:"12px", color:t.textSub, marginTop:"2px" }}>
+            1 report per clinic per day · Auto-date: <strong style={{color:t.accent}}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</strong>
+          </p>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:"10px", background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"12px", padding:"10px 16px" }}>
+          <div style={{ fontSize:"12px", color:t.textSub }}>Completion</div>
+          <div style={{ width:"120px", height:"7px", background:t.inputBg, borderRadius:"4px", overflow:"hidden" }}>
+            <div style={{ height:"100%", width:`${progress}%`, background:`linear-gradient(90deg,${t.accent},${t.accentDk})`, borderRadius:"4px", transition:"width .4s" }}/>
+          </div>
+          <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"13px", fontWeight:800, color:t.accent }}>{progress}%</div>
+          {formState==="draft" && <Badge status="draft" t={t}/>}
+          {formState==="submitted" && <Badge status="success" t={t}/>}
+        </div>
+      </div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:"18px", alignItems:"start" }}>
+        <div>
+          <KPIForm t={t} kpi={kpi} setKpi={setKpi} formState={formState}/>
+          <div style={{ display:"flex", gap:"12px", justifyContent:"flex-end", marginTop:"18px", paddingTop:"16px", borderTop:`1px solid ${t.border}` }}>
+            <button onClick={handleClear} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 22px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:"10px", color:t.textSub, fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
+              <Ico d="M18 6L6 18M6 6l12 12" size={14} color={t.textSub}/>Clear
+            </button>
+            <button onClick={handleSaveDraft} disabled={formState==="submitting"} style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 22px", background:t.warning+"15", border:`1px solid ${t.warning}44`, borderRadius:"10px", color:t.warning, fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
+              <Ico d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" size={14} color={t.warning}/>Save Draft
+            </button>
+            <button onClick={handleSubmit} disabled={formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"}
+              style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 26px", background:formState==="submitted"?t.success+"99":timeLeft==="Deadline passed"?t.danger+"99":`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"?"not-allowed":"pointer", boxShadow:`0 6px 20px ${t.accent}44` }}>
+              {formState==="submitting" ? (<><span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,.3)", borderTop:"2px solid #fff", borderRadius:"50%", animation:"spin .7s linear infinite", display:"inline-block" }}/> Submitting…</>)
+              : formState==="submitted" ? (<><Ico d="M20 6L9 17l-5-5" size={14} color="#fff" stroke={2.5}/> Submitted!</>)
+              : timeLeft==="Deadline passed" ? (<><Ico d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" size={14} color="#fff"/> Deadline Passed</>)
+              : (<><Ico d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" size={14} color="#fff"/> Submit Final</>)}
+            </button>
+          </div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:"14px", position:"sticky", top:"16px" }}>
+          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
+            <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>Report Info</div>
+            </div>
+            <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:"10px" }}>
+              {[
+                { label:"Clinic",   value:clinicName, icon:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" },
+               { label:"Manager", value: me?.first_name ? `${me.first_name} ${me.last_name}`.trim() : me?.username || userEmail, icon:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
+                { label:"Date",     value:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), icon:"M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" },
+                { label:"Deadline", value:"6:30 PM daily", icon:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
+              ].map(item=>(
+                <div key={item.label} style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                  <div style={{ width:"28px", height:"28px", borderRadius:"7px", background:t.accentGl, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <Ico d={item.icon} size={13} color={t.accent}/>
+                  </div>
+                  <div>
+<div style={{ fontSize:"10px", color:t.accent, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", fontFamily:"'Syne',sans-serif" }}>{item.label}</div>
+                    <div style={{ fontSize:"13px", fontWeight:600, color:t.text }}>{item.value}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
+            <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>How to Submit</div>
+            </div>
+            <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
+              {[
+                { c:t.accent,  txt:"Date and clinic are auto-filled — do not change." },
+                { c:t.success, txt:"Fill all 5 blocks completely." },
+                { c:t.warning, txt:"Save draft anytime to preserve progress." },
+                { c:"#A855F7", txt:"Submit Final once all fields are complete." },
+                { c:t.danger,  txt:"Must be submitted before end of shift" },
+              ].map((s,i)=>(
+                <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:"9px", padding:"9px 11px", background:s.c+"0a", border:`1px solid ${s.c}22`, borderRadius:"9px" }}>
+                  <span style={{ width:"6px", height:"6px", borderRadius:"50%", background:s.c, marginTop:"5px", flexShrink:0, display:"inline-block" }}/>
+                  <p style={{ fontSize:"12px", color:t.textSub, lineHeight:1.5, margin:0 }}>{s.txt}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
+            <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>This Week</div>
+            </div>
+            <div style={{ padding:"14px 16px", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px" }}>
+              {[
+                { label:"Submitted", val:history.filter(h=>h.status==="success").length, c:t.success },
+                { label:"Drafts",    val:history.filter(h=>h.status==="draft").length,   c:t.warning },
+                { label:"Failed",    val:history.filter(h=>h.status==="failed").length,  c:t.danger  },
+              ].map(s=>(
+                <div key={s.label} style={{ background:s.c+"10", border:`1px solid ${s.c}33`, borderRadius:"10px", padding:"10px 8px", textAlign:"center" }}>
+                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"22px", fontWeight:800, color:s.c }}>{s.val}</div>
+                  <div style={{ fontSize:"10px", color:t.textSub, marginTop:"2px" }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+            <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <Ico d="M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" size={17} color={t.accent}/>
+            </div>
+            <div>
+              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Submission History</div>
+              <div style={{ fontSize:"11px", color:t.textSub }}>{history.length} recent entries</div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:"6px" }}>
+            {["success","draft","failed"].map(s=><Badge key={s} status={s} t={t}/>)}
+          </div>
+        </div>
+        <div style={{ padding:"14px 18px" }}>
+          <HistoryTable
+  t={t}
+  history={history}
+  setSelectedReport={setSelectedReport}
+/>
+        </div>
+      </div>
+      <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
+          <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Ico d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" size={17} color={t.accent}/>
+          </div>
+          <div>
+            <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Clinic Staff</div>
+            <div style={{ fontSize:"11px", color:t.textSub }}>
+              {staffLoading ? "Loading…" : `${staff.length} staff member${staff.length !== 1 ? "s" : ""}`}
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:"14px 18px", overflowX:"auto" }}>
+          {staffLoading ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"32px", gap:"10px", color:t.textSub, fontSize:"13px" }}>
+              <span style={{ width:"16px", height:"16px", border:`2px solid ${t.border}`, borderTop:`2px solid ${t.accent}`, borderRadius:"50%", display:"inline-block", animation:"spin .7s linear infinite" }}/>
+              Loading staff…
+            </div>
+          ) : staff.length === 0 ? (
+            <div style={{ textAlign:"center", padding:"32px", color:t.textMt, fontSize:"13px", fontStyle:"italic" }}>No staff found</div>
+          ) : (
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+              <thead>
+                <tr>
+                  {["Name","Role","Qualification","Training Coverage"].map(h=>(
+                    <th key={h} style={{ textAlign:"left", padding:"9px 14px", color:t.textMt, fontWeight:700, fontSize:"10px", letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", borderBottom:`1px solid ${t.border}`, whiteSpace:"nowrap" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {staff.map((s, i) => (
+                  <tr key={s.id}
+                    style={{ background: i%2===0 ? "transparent" : t.rowBg, transition:"background .15s" }}
+                    onMouseEnter={e => e.currentTarget.style.background = t.accentGl}
+                    onMouseLeave={e => e.currentTarget.style.background = i%2===0 ? "transparent" : t.rowBg}>
+                    <td style={{ padding:"11px 14px", fontWeight:600, color:t.text, whiteSpace:"nowrap" }}>{s.name}</td>
+                    <td style={{ padding:"11px 14px", color:t.textSub }}>{s.role}</td>
+                    <td style={{ padding:"11px 14px", color:t.textSub }}>{s.qualification}</td>
+                    <td style={{ padding:"11px 14px" }}>
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:"5px", background: s.training_coverage ? t.success+"18" : t.danger+"12", border:`1px solid ${s.training_coverage ? t.success+"44" : t.danger+"33"}`, borderRadius:"20px", padding:"3px 10px", fontSize:"11px", fontWeight:700, color: s.training_coverage ? t.success : t.danger, fontFamily:"'Syne',sans-serif" }}>
+                        <span style={{ width:"5px", height:"5px", borderRadius:"50%", background: s.training_coverage ? t.success : t.danger, display:"inline-block" }}/>
+                        {s.training_coverage ? "Yes" : "No"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </>
+  );
+};
   return (
     <div style={{ display:"flex", minHeight:"100vh", background:t.pageBg, fontFamily:"'DM Sans',sans-serif", transition:"background .3s", position:"relative" }}>
       <style>{`
@@ -1110,223 +1643,300 @@ useEffect(() => {
       <Sidebar t={t} active={activeNav} setActive={setActiveNav} collapsed={collapsed} setCollapsed={setCollapsed} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} dark={dark} setDark={setDark} onLogout={()=>navigate("/login")}/>
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
-        <Header t={t} dark={dark} setDark={setDark} notifs={notifs} setNotifs={setNotifs} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}/>
+      <Header t={t} dark={dark} setDark={setDark} notifs={notifs} setNotifs={setNotifs} mobileOpen={mobileOpen} setMobileOpen={setMobileOpen} me={me}/>
 
         <main style={{ flex:1, overflowY:"auto", padding:"20px", display:"flex", flexDirection:"column", gap:"18px" }}>
 
           {/* Deadline banner */}
            <DeadlineBanner t={t} />
+          
+          {renderContent()}
+          
+          {selectedReport && (
+  <div
+    onClick={() => setSelectedReport(null)}
+    style={{
+      position: "fixed",
+      inset: 0,
+      background: "rgba(8, 12, 20, 0.75)",
+      backdropFilter: "blur(6px)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 1000,
+      animation: "fadeIn 0.2s ease"
+    }}
+  >
+    <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+      @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+      @keyframes slideUp { from { opacity: 0; transform: translateY(18px) } to { opacity: 1; transform: translateY(0) } }
+      .kpi-modal::-webkit-scrollbar { width: 4px }
+      .kpi-modal::-webkit-scrollbar-track { background: transparent }
+      .kpi-modal::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px }
+      .kpi-row:hover { background: rgba(255,255,255,0.03) }
+      .kpi-close:hover { background: rgba(255,255,255,0.1); color: #fff }
+      .kpi-stat-card:hover { border-color: rgba(255,255,255,0.12) !important; transform: translateY(-1px) }
+    `}</style>
 
-          {/* Page info row */}
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:"10px" }}>
-            <div>
-              <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:"20px", fontWeight:800, color:t.text }}>Daily KPI Report</h2>
-              <p style={{ fontSize:"12px", color:t.textSub, marginTop:"2px" }}>
-                1 report per clinic per day · Auto-date: <strong style={{color:t.accent}}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</strong>
-              </p>
+    <div
+      className="kpi-modal"
+      onClick={e => e.stopPropagation()}
+      style={{
+        width: "500px",
+        maxHeight: "82vh",
+        overflowY: "auto",
+        background: "linear-gradient(160deg, #0f1923 0%, #0b1420 100%)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: "20px",
+        boxShadow: "0 32px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.07)",
+        animation: "slideUp 0.25s ease",
+      }}
+    >
+      {/* Header */}
+      <div style={{
+        background: "linear-gradient(135deg, #1a3a5c 0%, #0f2a44 100%)",
+        padding: "24px 24px 22px",
+        borderBottom: "1px solid rgba(255,255,255,0.07)",
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+          <div>
+            <div style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: "10px",
+              letterSpacing: "0.15em",
+              color: "#5ba3d9",
+              textTransform: "uppercase",
+              marginBottom: "8px"
+            }}>
+              Shift Report · KPI Summary
             </div>
-            {/* Progress pill */}
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"12px", padding:"10px 16px" }}>
-              <div style={{ fontSize:"12px", color:t.textSub }}>Completion</div>
-              <div style={{ width:"120px", height:"7px", background:t.inputBg, borderRadius:"4px", overflow:"hidden" }}>
-                <div style={{ height:"100%", width:`${progress}%`, background:`linear-gradient(90deg,${t.accent},${t.accentDk})`, borderRadius:"4px", transition:"width .4s" }}/>
-              </div>
-              <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"13px", fontWeight:800, color:t.accent }}>{progress}%</div>
-              {formState==="draft" && <Badge status="draft" t={t}/>}
-              {formState==="submitted" && <Badge status="success" t={t}/>}
+            <div style={{
+              fontFamily: "'Syne', sans-serif",
+              fontSize: "26px",
+              fontWeight: "800",
+              color: "#e8f1fa",
+              lineHeight: 1.1,
+              letterSpacing: "-0.02em"
+            }}>
+              {selectedReport.shift_date}
             </div>
-          </div>
-
-          {/* Two-col layout: form + sidebar */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 300px", gap:"18px", alignItems:"start" }}>
-
-            {/* LEFT: KPI form */}
-            <div>
-              <KPIForm t={t} kpi={kpi} setKpi={setKpi} formState={formState}/>
-
-              {/* Action buttons */}
-              <div style={{ display:"flex", gap:"12px", justifyContent:"flex-end", marginTop:"18px", paddingTop:"16px", borderTop:`1px solid ${t.border}` }}>
-                <button onClick={handleClear}
-                  style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 22px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:"10px", color:t.textSub, fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
-                  <Ico d="M18 6L6 18M6 6l12 12" size={14} color={t.textSub}/>
-                  Clear
-                </button>
-                <button onClick={handleSaveDraft} disabled={formState==="submitting"}
-                  style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 22px", background:t.warning+"15", border:`1px solid ${t.warning}44`, borderRadius:"10px", color:t.warning, fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:"pointer" }}>
-                  <Ico d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M7 3v5h8" size={14} color={t.warning}/>
-                  Save Draft
-                </button>
-                <button onClick={handleSubmit} disabled={formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"}
-                      style={{ display:"flex", alignItems:"center", gap:"8px", padding:"12px 26px", background:formState==="submitted"?t.success+`99`:timeLeft==="Deadline passed"?t.danger+"99":`linear-gradient(135deg,${t.accent},${t.accentDk})`, border:"none", borderRadius:"10px", color:"#fff", fontSize:"13px", fontWeight:700, fontFamily:"'Syne',sans-serif", cursor:formState==="submitting"||formState==="submitted"||timeLeft==="Deadline passed"?"not-allowed":"pointer", opacity:formState==="submitting"?.8:1, boxShadow:`0 6px 20px ${t.accent}44`, transition:"all .2s" }}>
-                    {formState==="submitting" ? (
-                    <><span style={{ width:"14px", height:"14px", border:"2px solid rgba(255,255,255,.3)", borderTop:"2px solid #fff", borderRadius:"50%", animation:"spin .7s linear infinite", display:"inline-block" }}/> Submitting…</>
-                     ) : formState==="submitted" ? (
-                       <><Ico d="M20 6L9 17l-5-5" size={14} color="#fff" stroke={2.5}/> Submitted!</>
-                    ) : timeLeft==="Deadline passed" ? (
-                       <><Ico d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" size={14} color="#fff"/> Deadline Passed</>
-                         ) : (
-                       <><Ico d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" size={14} color="#fff"/> Submit Final</>
-                     )}
-                    </button>
-              </div>
-            </div>
-
-            {/* RIGHT: Info panel */}
-            <div style={{ display:"flex", flexDirection:"column", gap:"14px", position:"sticky", top:"16px" }}>
-
-              {/* Clinic info */}
-              <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
-                <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>Report Info</div>
-                </div>
-                <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:"10px" }}>
-                  {[
-                    { label:"Clinic",    value:"Central Clinic",                       icon:"M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" },
-                    { label:"Manager",   value:"Clinical Manager",                     icon:"M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" },
-                    { label:"Date",      value:new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}), icon:"M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10zM12 6v6l4 2" },
-                    { label:"Deadline",  value:"6:30 PM daily",                        icon:"M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" },
-                  ].map(item=>(
-                    <div key={item.label} style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                      <div style={{ width:"28px", height:"28px", borderRadius:"7px", background:t.accentGl, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
-                        <Ico d={item.icon} size={13} color={t.accent}/>
-                      </div>
-                      <div>
-                        <div style={{ fontSize:"10px", color:t.textMt, textTransform:"uppercase", letterSpacing:"0.5px", fontFamily:"'Syne',sans-serif" }}>{item.label}</div>
-                        <div style={{ fontSize:"13px", fontWeight:600, color:t.text }}>{item.value}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Instructions */}
-              <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
-                <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>How to Submit</div>
-                </div>
-                <div style={{ padding:"14px 16px", display:"flex", flexDirection:"column", gap:"8px" }}>
-                  {[
-                    { c:t.accent,   txt:"Date and clinic are auto-filled — do not change." },
-                    { c:t.success,  txt:"Fill all 5 blocks completely." },
-                    { c:t.warning,  txt:"Save draft anytime to preserve progress." },
-                    { c:"#A855F7",  txt:"Submit Final once all fields are complete." },
-                    { c:t.danger,   txt:"Must be submitted before 6:30 PM daily." },
-                  ].map((s,i)=>(
-                    <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:"9px", padding:"9px 11px", background:s.c+"0a", border:`1px solid ${s.c}22`, borderRadius:"9px" }}>
-                      <span style={{ width:"6px", height:"6px", borderRadius:"50%", background:s.c, marginTop:"5px", flexShrink:0, display:"inline-block" }}/>
-                      <p style={{ fontSize:"12px", color:t.textSub, lineHeight:1.5, margin:0 }}>{s.txt}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* This week summary */}
-              <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"14px", overflow:"hidden", boxShadow:t.shadow }}>
-                <div style={{ padding:"13px 16px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontWeight:700, fontSize:"13px", color:t.text }}>This Week</div>
-                </div>
-                <div style={{ padding:"14px 16px", display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"8px" }}>
-                  {[
-                    { label:"Submitted", val:history.filter(h=>h.status==="success").length, c:t.success },
-                    { label:"Drafts",    val:history.filter(h=>h.status==="draft").length,   c:t.warning },
-                    { label:"Failed",    val:history.filter(h=>h.status==="failed").length,  c:t.danger  },
-                  ].map(s=>(
-                    <div key={s.label} style={{ background:s.c+"10", border:`1px solid ${s.c}33`, borderRadius:"10px", padding:"10px 8px", textAlign:"center" }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"22px", fontWeight:800, color:s.c }}>{s.val}</div>
-                      <div style={{ fontSize:"10px", color:t.textSub, marginTop:"2px" }}>{s.label}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div style={{
+              fontFamily: "'Syne', sans-serif",
+              fontSize: "14px",
+              fontWeight: "500",
+              color: "#5b8fad",
+              marginTop: "5px",
+              letterSpacing: "0.01em"
+            }}>
+              {selectedReport.shift} Shift
             </div>
           </div>
 
-          {/* Submission history */}
-          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
-              <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-                <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                  <Ico d="M12 8v4l3 3M3.05 11a9 9 0 1 0 .5-4M3 3v5h5" size={17} color={t.accent}/>
-                </div>
-                <div>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Submission History</div>
-                  <div style={{ fontSize:"11px", color:t.textSub }}>{history.length} recent entries</div>
-                </div>
-              </div>
-              <div style={{ display:"flex", gap:"6px" }}>
-                {["success","draft","failed"].map(s=><Badge key={s} status={s} t={t}/>)}
-              </div>
-            </div>
-            <div style={{ padding:"14px 18px" }}>
-              <HistoryTable t={t} history={history}/>
-            </div>
-          </div>
-        {/* ── Clinic Staff ── */}
-          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:"16px", overflow:"hidden", boxShadow:t.shadow }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"12px", padding:"15px 20px", borderBottom:`1px solid ${t.border}`, background:t.accentGl }}>
-              <div style={{ width:"34px", height:"34px", borderRadius:"9px", background:t.accent+"20", border:`1px solid ${t.accent}44`, display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Ico d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" size={17} color={t.accent}/>
-              </div>
-              <div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:"14px", fontWeight:700, color:t.text }}>Clinic Staff</div>
-                <div style={{ fontSize:"11px", color:t.textSub }}>
-                  {staffLoading ? "Loading…" : `${staff.length} staff member${staff.length !== 1 ? "s" : ""}`}
-                </div>
-              </div>
-            </div>
-            <div style={{ padding:"14px 18px", overflowX:"auto" }}>
-              {staffLoading ? (
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:"32px", gap:"10px", color:t.textSub, fontSize:"13px" }}>
-                  <span style={{ width:"16px", height:"16px", border:`2px solid ${t.border}`, borderTop:`2px solid ${t.accent}`, borderRadius:"50%", display:"inline-block", animation:"spin .7s linear infinite" }}/>
-                  Loading staff…
-                </div>
-              ) : staff.length === 0 ? (
-                <div style={{ textAlign:"center", padding:"32px", color:t.textMt, fontSize:"13px", fontStyle:"italic" }}>
-                  No staff found
-                </div>
-              ) : (
-                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
-                  <thead>
-                    <tr>
-                      {["Name","Role","Qualification","Training Coverage"].map(h => (
-                        <th key={h} style={{ textAlign:"left", padding:"9px 14px", color:t.textMt, fontWeight:700, fontSize:"10px", letterSpacing:"0.8px", textTransform:"uppercase", fontFamily:"'Syne',sans-serif", borderBottom:`1px solid ${t.border}`, whiteSpace:"nowrap" }}>
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {staff.map((s, i) => (
-                      <tr key={s.id}
-                        style={{ background: i % 2 === 0 ? "transparent" : t.rowBg, transition:"background .15s" }}
-                        onMouseEnter={e => e.currentTarget.style.background = t.accentGl}
-                        onMouseLeave={e => e.currentTarget.style.background = i % 2 === 0 ? "transparent" : t.rowBg}>
-                        <td style={{ padding:"11px 14px", fontWeight:600, color:t.text, whiteSpace:"nowrap" }}>{s.name}</td>
-                        <td style={{ padding:"11px 14px", color:t.textSub }}>{s.role}</td>
-                        <td style={{ padding:"11px 14px", color:t.textSub }}>{s.qualification}</td>
-                        <td style={{ padding:"11px 14px" }}>
-                          <span style={{
-                            display:"inline-flex", alignItems:"center", gap:"5px",
-                            background: s.training_coverage ? t.success+"18" : t.danger+"12",
-                            border: `1px solid ${s.training_coverage ? t.success+"44" : t.danger+"33"}`,
-                            borderRadius:"20px", padding:"3px 10px",
-                            fontSize:"11px", fontWeight:700,
-                            color: s.training_coverage ? t.success : t.danger,
-                            fontFamily:"'Syne',sans-serif",
-                          }}>
-                            <span style={{ width:"5px", height:"5px", borderRadius:"50%", background: s.training_coverage ? t.success : t.danger, display:"inline-block" }}/>
-                            {s.training_coverage ? "Yes" : "No"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
+          <button
+            className="kpi-close"
+            onClick={() => setSelectedReport(null)}
+            style={{
+              background: "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              width: "34px",
+              height: "34px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              color: "#7ba8c9",
+              fontSize: "14px",
+              transition: "all 0.15s ease",
+              flexShrink: 0
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      </div>
 
-        
+      <div style={{ padding: "22px 24px 28px" }}>
+
+        {/* Section: Patient Statistics */}
+        <div style={{
+          fontFamily: "'Syne', sans-serif",
+          fontSize: "11px",
+          fontWeight: "700",
+          letterSpacing: "0.12em",
+          color: "#2e5f80",
+          textTransform: "uppercase",
+          marginBottom: "12px"
+        }}>
+          Patient Statistics
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "10px" }}>
+          {[
+            { label: "Total Patients", value: selectedReport.total_patients, accent: "#5ba3d9" },
+            { label: "Emergency Cases", value: selectedReport.emergency_cases, accent: "#e8834a" },
+            { label: "Critical Cases", value: selectedReport.critical_cases, accent: "#d95b5b" },
+            { label: "ICU Transfers", value: selectedReport.icu_transfers, accent: "#a07dd9" },
+          ].map(({ label, value, accent }) => (
+            <div key={label} className="kpi-stat-card" style={{
+              background: "rgba(255,255,255,0.025)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              borderRadius: "12px",
+              padding: "14px 16px",
+              borderTop: `2px solid ${accent}`,
+              transition: "all 0.15s ease",
+            }}>
+              <div style={{
+                fontFamily: "'DM Mono', monospace",
+                fontSize: "28px",
+                fontWeight: "500",
+                color: accent,
+                lineHeight: 1,
+                marginBottom: "6px"
+              }}>
+                {value ?? "—"}
+              </div>
+              <div style={{
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: "11px",
+                color: "#4d7a94",
+                letterSpacing: "0.02em"
+              }}>
+                {label}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mortality */}
+        <div style={{
+          background: "rgba(217, 91, 91, 0.06)",
+          border: "1px solid rgba(217, 91, 91, 0.18)",
+          borderRadius: "12px",
+          padding: "13px 16px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "24px"
+        }}>
+          <div>
+            <div style={{
+              fontFamily: "'Syne', sans-serif",
+              fontSize: "12px",
+              fontWeight: "600",
+              color: "#b87070",
+              letterSpacing: "0.04em"
+            }}>
+              Mortality Count
+            </div>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "11px",
+              color: "#6b4a4a",
+              marginTop: "2px"
+            }}>
+              Recorded this shift
+            </div>
+          </div>
+          <div style={{
+            fontFamily: "'DM Mono', monospace",
+            fontSize: "32px",
+            fontWeight: "500",
+            color: "#d95b5b",
+            lineHeight: 1
+          }}>
+            {selectedReport.mortality_count ?? "—"}
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", marginBottom: "24px" }} />
+
+        {/* Section: Operations */}
+        <div style={{
+          fontFamily: "'Syne', sans-serif",
+          fontSize: "11px",
+          fontWeight: "700",
+          letterSpacing: "0.12em",
+          color: "#2e5f80",
+          textTransform: "uppercase",
+          marginBottom: "6px"
+        }}>
+          Operations
+        </div>
+
+        {[
+          { label: "Staff on Duty", value: selectedReport.staff_on_duty, icon: "👤" },
+          { label: "Nurses Absent", value: selectedReport.nurses_absent, icon: "⚠️" },
+          { label: "Power Outage", value: `${selectedReport.power_outage_hours} hrs`, icon: "⚡" },
+          { label: "Internet Downtime", value: `${selectedReport.internet_downtime_hours} hrs`, icon: "📡" },
+        ].map(({ label, value, icon }) => (
+          <div key={label} className="kpi-row" style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "10px 10px",
+            borderRadius: "8px",
+            transition: "background 0.15s ease"
+          }}>
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: "13px",
+              color: "#5a7d94",
+              display: "flex",
+              alignItems: "center",
+              gap: "9px"
+            }}>
+              <span style={{ fontSize: "13px", opacity: 0.75 }}>{icon}</span>
+              {label}
+            </div>
+            <div style={{
+              fontFamily: "'DM Mono', monospace",
+              fontSize: "14px",
+              color: "#a8cce0",
+              fontWeight: "500"
+            }}>
+              {value ?? "—"}
+            </div>
+          </div>
+        ))}
+
+        {/* Comments */}
+        <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "20px 0" }} />
+
+        <div style={{
+          fontFamily: "'Syne', sans-serif",
+          fontSize: "11px",
+          fontWeight: "700",
+          letterSpacing: "0.12em",
+          color: "#2e5f80",
+          textTransform: "uppercase",
+          marginBottom: "10px"
+        }}>
+          Comments
+        </div>
+
+        <p style={{
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: "13px",
+          color: "#6b9ab8",
+          lineHeight: "1.75",
+          whiteSpace: "pre-wrap",
+          background: "rgba(255,255,255,0.02)",
+          border: "1px solid rgba(255,255,255,0.05)",
+          borderRadius: "12px",
+          padding: "16px",
+          margin: 0,
+          minHeight: "60px"
+        }}>
+          {selectedReport.comments || "No comments recorded for this shift."}
+        </p>
+
+      </div>
+    </div>
+  </div>
+)}
         </main>
       </div>
     </div>

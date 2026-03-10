@@ -180,3 +180,5 @@ class ClinicKPI(models.Model):
 
     def __str__(self):
         return f"{self.clinic.name} - {self.shift} - {self.created_at.date()}"
+    
+    

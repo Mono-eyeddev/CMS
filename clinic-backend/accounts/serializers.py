@@ -1,9 +1,9 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import User, ClinicKPI
+from .models import User, ClinicKPI,Clinic
 from .models import AuditLog
-
+from .models import Staff
 class AuditLogSerializer(serializers.ModelSerializer):
 
     user = serializers.StringRelatedField()
@@ -63,10 +63,35 @@ class LoginSerializer(serializers.Serializer):
             "email": user.email,
         }
 
+class ClinicSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Clinic
+        fields = ["id", "name", "location", "code", "timezone"]
+    
+class MeSerializer(serializers.ModelSerializer):
+    clinic = ClinicSerializer(read_only=True)
 
+    class Meta:
+        model = User
+        fields = ["id", "username", "email", "first_name", "last_name", "role", "clinic"]
 class KPISerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ClinicKPI
         fields = "__all__"
         read_only_fields = ["manager", "clinic", "created_at"]
+        
+class StaffSerializer(serializers.ModelSerializer):
+
+    clinic = serializers.CharField(source="clinic.name")
+
+    class Meta:
+        model = Staff
+        fields = [
+            "id",
+            "name",
+            "role",
+            "qualification",
+            "training_coverage",
+            "clinic"
+        ]

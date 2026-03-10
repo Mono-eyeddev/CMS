@@ -1061,71 +1061,97 @@ export default function CNODashboard() {
       <Sidebar t={t} active={activeNav} setActive={setActiveNav} collapsed={collapsed} setCollapsed={setCollapsed} dark={dark} setDark={setDark} onLogout={handleLogout} alertCount={alertBadge}/>
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
         <Header t={t} dark={dark} setDark={setDark} notifs={notifs} setNotifs={setNotifs} clinicFilter={clinicFilter} setClinicFilter={setClinicFilter} dateRange={dateRange} setDateRange={setDateRange} clinics={clinics} profile={profile}/>
-        <main style={{ flex:1, overflowY:"auto", padding:18, display:"flex", flexDirection:"column", gap:16 }}>
-          {criticalCount > 0 && (
-            <div style={{ background:`${t.danger}12`, border:`1px solid ${t.danger}44`, borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:10, animation:"fadeUp .3s ease both" }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:t.danger, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
-              <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:t.danger }}>
-                {criticalCount} Critical Clinic{criticalCount>1?"s":""} Require Immediate Attention
+
+       <main style={{ flex:1, overflowY:"auto", padding:18, display:"flex", flexDirection:"column", gap:16 }}>
+  {(() => {
+    if (activeNav === "Risk Heatmap") return (
+      <Card t={t} title="Geographic Risk Distribution" sub="Full heatmap view" icon={IC.heatmap} iconColor={t.purple}>
+        <GeographicHeatmap t={t} clinics={filteredClinics}/>
+      </Card>
+    );
+    if (activeNav === "Alerts") return (
+      <>
+        <SummaryStats t={t} clinics={clinics}/>
+        <Card t={t} title="Active System Alerts" sub="Click an alert to expand recommended actions" icon={IC.alerts} iconColor={t.danger}>
+          <AlertsPanel t={t}/>
+        </Card>
+      </>
+    );
+    if (activeNav === "Reports") return (
+      <Card t={t} title="Recent Reports" sub="Latest submitted operational reports" icon={IC.reports} iconColor={t.accent}>
+        <RecentReports t={t} showToast={showToast}/>
+      </Card>
+    );
+    // Default: Dashboard
+    return (
+      <>
+        {criticalCount > 0 && (
+          <div style={{ background:`${t.danger}12`, border:`1px solid ${t.danger}44`, borderRadius:10, padding:"10px 16px", display:"flex", alignItems:"center", gap:10, animation:"fadeUp .3s ease both" }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:t.danger, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
+            <span style={{ fontFamily:"'Syne',sans-serif", fontWeight:800, fontSize:13, color:t.danger }}>
+              {criticalCount} Critical Clinic{criticalCount>1?"s":""} Require Immediate Attention
+            </span>
+            <div style={{ marginLeft:"auto", fontSize:11, color:t.danger, fontWeight:600 }}>
+              {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})} · {new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}
+            </div>
+          </div>
+        )}
+        {loading && (
+          <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:10, padding:"12px 20px", display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:t.accent, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
+            <span style={{ fontSize:12, color:t.textSub, fontFamily:"'Syne',sans-serif" }}>Loading clinic data from server…</span>
+          </div>
+        )}
+        <SummaryStats t={t} clinics={clinics}/>
+        <Card t={t} title="Clinic Performance Overview" sub={`${filteredClinics.length} facilities · ${dateRange}`} icon={IC.dashboard} iconColor={t.accent}
+          action={<span style={{ fontSize:11, color:t.textMt, background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:6, padding:"3px 9px" }}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}>
+          <ClinicCards t={t} clinics={filteredClinics} dark={dark}/>
+        </Card>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 280px", gap:14, alignItems:"start" }}>
+          <Card t={t} title="Geographic Risk Distribution" sub="Hover a marker for clinic details" icon={IC.heatmap} iconColor={t.purple}>
+            <GeographicHeatmap t={t} clinics={filteredClinics}/>
+          </Card>
+          <Card t={t} title="Risk Ranking" sub="By instability score · EBM" icon={IC.activity} iconColor={t.danger}>
+            <ClinicRankingChart t={t} clinics={filteredClinics}/>
+            <div style={{ display:"flex", gap:12, marginTop:10, paddingTop:10, borderTop:`1px solid ${t.border}` }}>
+              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
+                <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.danger}` }}/> Critical ≥ 0.75
               </span>
-              <div style={{ marginLeft:"auto", fontSize:11, color:t.danger, fontWeight:600 }}>
-                {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric",year:"numeric"})} · {new Date().toLocaleTimeString("en-US",{hour:"2-digit",minute:"2-digit"})}
-              </div>
+              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
+                <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.warning}` }}/> High ≥ 0.50
+              </span>
             </div>
-          )}
-          {loading && (
-            <div style={{ background:t.cardBg, border:`1px solid ${t.border}`, borderRadius:10, padding:"12px 20px", display:"flex", alignItems:"center", gap:10 }}>
-              <div style={{ width:8, height:8, borderRadius:"50%", background:t.accent, animation:"pulse 1.5s ease infinite", flexShrink:0 }}/>
-              <span style={{ fontSize:12, color:t.textSub, fontFamily:"'Syne',sans-serif" }}>Loading clinic data from server…</span>
-            </div>
-          )}
-          <SummaryStats t={t} clinics={clinics}/>
-          <Card t={t} title="Clinic Performance Overview" sub={`${filteredClinics.length} facilities · ${dateRange}`} icon={IC.dashboard} iconColor={t.accent}
-            action={<span style={{ fontSize:11, color:t.textMt, background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:6, padding:"3px 9px" }}>{new Date().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>}>
-            <ClinicCards t={t} clinics={filteredClinics} dark={dark}/>
           </Card>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 280px", gap:14, alignItems:"start" }}>
-            <Card t={t} title="Geographic Risk Distribution" sub="Hover a marker for clinic details" icon={IC.heatmap} iconColor={t.purple}>
-              <GeographicHeatmap t={t} clinics={filteredClinics}/>
-            </Card>
-            <Card t={t} title="Risk Ranking" sub="By instability score · EBM" icon={IC.activity} iconColor={t.danger}>
-              <ClinicRankingChart t={t} clinics={filteredClinics}/>
-              <div style={{ display:"flex", gap:12, marginTop:10, paddingTop:10, borderTop:`1px solid ${t.border}` }}>
-                <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
-                  <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.danger}` }}/> Critical ≥ 0.75
-                </span>
-                <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:t.textMt }}>
-                  <span style={{ display:"inline-block", width:24, height:1, borderTop:`2px dashed ${t.warning}` }}/> High ≥ 0.50
-                </span>
-              </div>
-            </Card>
-          </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 260px", gap:14, alignItems:"start" }}>
-            <Card t={t} title="Operational Trend Analysis" sub={`${dateRange} · click a tab to switch metric`} icon={IC.trend} iconColor={t.success}
-              action={
-                <button onClick={() => window.location.reload()} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:8, cursor:"pointer", fontSize:11, color:t.textSub, fontWeight:600, fontFamily:"'Syne',sans-serif" }}>
-                  <Ico d={IC.refresh} size={11} color={t.textSub}/> Refresh
-                </button>
-              }>
-              <TrendCharts t={t}/>
-            </Card>
-            <Card t={t} title="Resource Pressure" sub="System capacity indicators" icon={IC.alerts} iconColor={t.warning}>
-              <ResourceMonitor t={t}/>
-            </Card>
-          </div>
-          <Card t={t} title="Clinical KPI Monitor" sub="Live indicators — click a category tab to explore" icon={IC.activity} iconColor={t.danger}>
-            <KpiMonitor t={t}/>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 260px", gap:14, alignItems:"start" }}>
+          <Card t={t} title="Operational Trend Analysis" sub={`${dateRange} · click a tab to switch metric`} icon={IC.trend} iconColor={t.success}
+            action={
+              <button onClick={() => window.location.reload()} style={{ display:"flex", alignItems:"center", gap:5, padding:"5px 10px", background:t.inputBg, border:`1px solid ${t.border}`, borderRadius:8, cursor:"pointer", fontSize:11, color:t.textSub, fontWeight:600, fontFamily:"'Syne',sans-serif" }}>
+                <Ico d={IC.refresh} size={11} color={t.textSub}/> Refresh
+              </button>
+            }>
+            <TrendCharts t={t}/>
           </Card>
-          <Card t={t} title="Active System Alerts" sub="Click an alert to expand recommended actions" icon={IC.alerts} iconColor={t.danger}>
-            <AlertsPanel t={t}/>
+          <Card t={t} title="Resource Pressure" sub="System capacity indicators" icon={IC.alerts} iconColor={t.warning}>
+            <ResourceMonitor t={t}/>
           </Card>
-          <Card t={t} title="Clinic Status Overview · All Facilities" sub="Color-coded KPI columns — red = critical, amber = warning" icon={IC.dashboard} iconColor={t.accent}>
-            <ClinicTable t={t} clinics={filteredClinics}/>
-          </Card>
-          <Card t={t} title="Recent Reports" sub="Latest submitted operational reports" icon={IC.reports} iconColor={t.accent}>
-            <RecentReports t={t} showToast={showToast}/>
-          </Card>
-        </main>
+        </div>
+        <Card t={t} title="Clinical KPI Monitor" sub="Live indicators — click a category tab to explore" icon={IC.activity} iconColor={t.danger}>
+          <KpiMonitor t={t}/>
+        </Card>
+        <Card t={t} title="Active System Alerts" sub="Click an alert to expand recommended actions" icon={IC.alerts} iconColor={t.danger}>
+          <AlertsPanel t={t}/>
+        </Card>
+        <Card t={t} title="Clinic Status Overview · All Facilities" sub="Color-coded KPI columns — red = critical, amber = warning" icon={IC.dashboard} iconColor={t.accent}>
+          <ClinicTable t={t} clinics={filteredClinics}/>
+        </Card>
+        <Card t={t} title="Recent Reports" sub="Latest submitted operational reports" icon={IC.reports} iconColor={t.accent}>
+          <RecentReports t={t} showToast={showToast}/>
+        </Card>
+      </>
+    );
+  })()}
+</main>
       </div>
     </div>
   );

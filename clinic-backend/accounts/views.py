@@ -15,6 +15,8 @@ from .utils import log_audit
 from .models import User
 import csv
 from django.http import HttpResponse
+from .serializers import StaffSerializer
+from .serializers import MeSerializer
 
 # =========================
 # Audit log export view
@@ -118,8 +120,53 @@ class LoginView(APIView):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class SubmissionHistoryView(APIView):
 
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+
+        clinic = request.user.clinic
+
+        kpis = ClinicKPI.objects.filter(clinic=clinic).order_by("-shift_date")
+
+        data = []
+
+        for k in kpis:
+
+            data.append({
+                "id": k.id,
+                "date": k.shift_date,
+                "shift": k.shift,
+
+                # patient load
+                "total_patients": k.total_patients,
+                "emergency_cases": k.emergency_cases,
+                "critical_cases": k.critical_cases,
+
+                # staffing
+                "staff_on_duty": k.staff_on_duty,
+                "nurses_absent": k.nurses_absent,
+
+                # quality
+                "bed_occupancy_rate": k.bed_occupancy_rate,
+
+                # meta
+                "created_at": k.created_at
+            })
+
+        return Response(data)
+    
+# =========================
+#  manager history 
+# =========================
+class ManagerHistoryView(APIView):
+    permission_classes = [IsAuthenticated, IsManager]
+
+    def get(self, request):
+        kpis = ClinicKPI.objects.filter(manager=request.user).order_by("-shift_date", "-created_at")
+        serializer = KPISerializer(kpis, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 # =========================
 # SYSADMIN DASHBOARD
 # =========================
@@ -135,7 +182,12 @@ class SysAdminDashboardView(APIView):
             "role": request.user.role
         })
 
+class MeView(APIView):
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request):
+        serializer = MeSerializer(request.user)
+        return Response(serializer.data)
 # =========================
 # CNO DASHBOARD
 # =========================
@@ -175,24 +227,19 @@ class ManagerDashboardView(APIView):
 
 class ManagerStaffView(APIView):
 
-    permission_classes = [IsAuthenticated, IsManager]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
+
+        # manager clinic
         clinic = request.user.clinic
+
+        # staff only in that clinic
         staff = Staff.objects.filter(clinic=clinic)
 
-        data = [
-            {
-                "id": s.id,
-                "name": s.name,
-                "role": s.role,
-                "qualification": s.qualification,
-                "training_coverage": s.training_coverage
-            }
-            for s in staff
-        ]
+        serializer = StaffSerializer(staff, many=True)
 
-        return Response(data)
+        return Response(serializer.data)
 
 
 # =========================

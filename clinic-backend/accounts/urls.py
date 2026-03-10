@@ -10,6 +10,10 @@ from .views import (
     CheckKPISubmissionView,
     AuditLogsView,
     ExportAuditLogsView,
+    ManagerStaffView,
+    SubmissionHistoryView,
+    MeView,
+    ManagerHistoryView
 )
 
 from .views_cno import (
@@ -39,7 +43,11 @@ urlpatterns = [
     path("cno/kpis/",               CNOKpisView.as_view()),
     path("cno/reports/",            CNOReportsView.as_view()),
     path("cno/notifications/",      CNONotificationsView.as_view()),
+    path("manager/staff/",          ManagerStaffView.as_view()),
+    path("manager/submissions/", SubmissionHistoryView.as_view()),
     path("cno/profile/",            CNOProfileView.as_view()),
     path("audit-logs/export/", ExportAuditLogsView.as_view()),
-    path("api/auth/manager/kpi/check-submission/", CheckKPISubmissionView.as_view()),
+    path("manager/history/", ManagerHistoryView.as_view()),
+    path("manager/me/", MeView.as_view(), name="manager-me"),
+    path("manager/kpi/check-submission/", CheckKPISubmissionView.as_view()),
 ]
