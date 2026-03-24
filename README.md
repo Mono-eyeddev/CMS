@@ -6,20 +6,21 @@
 </p>
 
 <p align="center">
-  Built with <strong>Django, React, PostgreSQL, and Explainable Boosting Machine (EBM)</strong>
+  Built with <strong>Django · React · PostgreSQL · Explainable Boosting Machine (EBM)</strong>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python">
-  <img src="https://img.shields.io/badge/Django-Backend-green?style=for-the-badge&logo=django">
+  <img src="https://img.shields.io/badge/Django-5.2.1-green?style=for-the-badge&logo=django">
   <img src="https://img.shields.io/badge/React-Frontend-blue?style=for-the-badge&logo=react">
   <img src="https://img.shields.io/badge/PostgreSQL-Database-blue?style=for-the-badge&logo=postgresql">
   <img src="https://img.shields.io/badge/Machine%20Learning-EBM-orange?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Status-Deployed-brightgreen?style=for-the-badge">
 </p>
 
 ---
 
-# Overview
+## Overview
 
 The **Clinic Instability Detection System** is an AI-driven healthcare reporting and decision-support platform designed to monitor operational stability across multiple clinics.
 
@@ -31,135 +32,88 @@ The system allows **Chief Nursing Officers (CNOs)** and healthcare administrator
 
 ---
 
-# Key Features
+## Key Features
 
-- Digital KPI reporting system for clinic managers  
-- AI-driven clinic instability detection  
-- Explainable machine learning predictions using EBM  
-- Real-time instability alerts for healthcare administrators  
-- KPI contribution analysis for transparent predictions  
-- Centralized monitoring of multiple clinics  
-- Role-based access control (Manager, CNO, System Administrator)
+- 📋 Digital KPI reporting system for clinic managers
+- 🤖 AI-driven clinic instability detection
+- 🔍 Explainable machine learning predictions using EBM
+- 🚨 Real-time instability alerts for healthcare administrators
+- 📊 KPI contribution analysis for transparent predictions
+- 🏥 Centralized monitoring of multiple clinics
+- 🔐 Role-based access control (Manager, CNO, System Administrator)
 
 ---
 
-# Machine Learning Model
+## Machine Learning Model
 
 The system uses an **Explainable Boosting Machine (EBM)** model to predict clinic instability.
 
 EBM is an interpretable machine learning algorithm that learns how each operational indicator contributes to instability risk.
 
-Unlike black-box models, EBM provides **transparent predictions**, allowing administrators to understand why a clinic was flagged as unstable.
+Unlike black-box models, EBM provides **transparent predictions**, allowing administrators to understand exactly why a clinic was flagged as unstable.
 
 ---
 
-# KPI Indicators Used
+## KPI Indicators Used
 
-The model evaluates **nine operational indicators derived from clinic KPIs**.
+The model evaluates **nine operational indicators** derived from clinic KPIs:
 
 | Indicator | Formula | Purpose |
 |---|---|---|
-critical_ratio | critical_cases / total_patients | Measures patient severity |
-staff_ratio | staff_on_duty / total_patients | Measures staffing capacity |
-bed_occupancy_rate | occupied_beds / total_beds | Measures facility utilization |
-mortality_flag | 1 if mortality_count > 0 else 0 | Detects severe clinical events |
-resource_failure | 1 if resource_failure_count > 0 else 0 | Detects equipment shortages |
-triage_wait_time | average waiting time (minutes) | Measures service delays |
-nurses_absent | nurses_absent_count | Measures workforce shortages |
-icu_transfers | icu_transfer_count | Measures escalation severity |
-patient_complaints | complaint_count | Measures service quality |
+| critical_ratio | critical_cases / total_patients | Measures patient severity |
+| staff_ratio | staff_on_duty / total_patients | Measures staffing capacity |
+| bed_occupancy_rate | occupied_beds / total_beds | Measures facility utilization |
+| mortality_flag | 1 if mortality_count > 0 else 0 | Detects severe clinical events |
+| resource_failure | 1 if resource_failure_count > 0 else 0 | Detects equipment shortages |
+| triage_wait_time | average waiting time (minutes) | Measures service delays |
+| nurses_absent | nurses_absent_count | Measures workforce shortages |
+| icu_transfers | icu_transfer_count | Measures escalation severity |
+| patient_complaints | complaint_count | Measures service quality |
 
 ---
 
-# Feature Vector Example
+## Risk Score Calculation
 
-After KPI processing, the clinic data becomes a **feature vector**:
-# ⚙️ Risk Score Calculation
-
-The Explainable Boosting Machine evaluates the contribution of each KPI indicator derived from clinic operational data.
-
-After feature engineering, the clinic data becomes a **feature vector** containing the nine indicators used by the model.
-
-Example feature vector:
+After feature engineering, clinic data is converted into a **feature vector**:
 
 ```
 [0.20, 0.083, 0.90, 1, 1, 40, 3, 6, 5]
 ```
 
-Each value corresponds to a KPI indicator in the following order:
-
-1. critical_ratio  
-2. staff_ratio  
-3. bed_occupancy_rate  
-4. mortality_flag  
-5. resource_failure  
-6. triage_wait_time  
-7. nurses_absent  
-8. icu_transfers  
-9. patient_complaints  
-
-The Explainable Boosting Machine computes the instability score using an additive model:
+The EBM computes the instability score using an additive model:
 
 ```
 Risk = Base + f1(x1) + f2(x2) + ... + f9(x9)
 ```
 
-Where each function represents the learned contribution of a KPI indicator.
-
-Example contribution calculation:
-
-```
-Base Risk = 0.02
-
-critical_ratio contribution = 0.18
-staff_ratio contribution = 0.12
-bed_occupancy contribution = 0.16
-mortality contribution = 0.21
-resource failure contribution = 0.10
-triage wait contribution = 0.09
-nurses absent contribution = 0.07
-ICU transfers contribution = 0.11
-complaints contribution = 0.06
-```
-
-Total risk score:
-
-```
-Risk ≈ 1.12
-```
-
----
-
-# Probability Conversion
-
-The risk score is converted into probability using the logistic function:
+The risk score is converted to probability using the logistic function:
 
 ```
 P(instability) = 1 / (1 + e^(-Risk))
 ```
 
-Example:
-
-```
-Risk Score = 1.12
-Instability Probability ≈ 0.75
-```
-
-This means the clinic has a **75% probability of operational instability**.
-
----
-
-# Risk Interpretation
+### Risk Interpretation
 
 | Probability | Interpretation |
 |---|---|
-| 0.01 – 0.30 | Stable clinic |
-| 0.31 – 0.60 | Moderate operational pressure |
-| 0.61 – 1.00 | High instability risk |
+| 0.01 – 0.30 | ✅ Stable clinic |
+| 0.31 – 0.60 | ⚠️ Moderate operational pressure |
+| 0.61 – 1.00 | 🚨 High instability risk |
 
 ---
 
-# System Architecture
+## Model Performance
+
+| Metric | Value |
+|---|---|
+| Accuracy | 1.0 |
+| Precision | 1.0 |
+| Recall | 1.0 |
+| F1 Score | 1.0 |
+
+---
+
+## System Architecture
 
 ```
 Clinic Managers
@@ -177,34 +131,35 @@ CNO Dashboard Alerts
 
 ---
 
-# Technology Stack
+## Technology Stack
 
-## Frontend
+### Frontend
 - React (Vite)
 - Tailwind CSS
 - Axios
 
-## Backend
-- Django
+### Backend
+- Django 5.2.1
 - Django REST Framework
+- SimpleJWT Authentication
 
-## Database
+### Database
 - PostgreSQL
 
-## Machine Learning
-- Python
-- Explainable Boosting Machine (InterpretML)
+### Machine Learning
+- Python 3.11
+- InterpretML (EBM)
 - Pandas
 - Scikit-learn
+- NumPy
 
-## Tools
+### Tools
 - Docker
-- Git
-- GitHub
+- Git & GitHub
 
 ---
 
-# Project Structure
+## Project Structure
 
 ```
 clinic-instability-system/
@@ -215,6 +170,7 @@ clinic-instability-system/
 │   ├── ml/
 │   │   └── ebm_model.pkl
 │   ├── config/
+│   ├── requirements.txt
 │   └── manage.py
 │
 ├── clinic-frontend/
@@ -227,86 +183,114 @@ clinic-instability-system/
 
 ---
 
-# Backend Setup
+## Backend Setup
 
-Clone the repository:
+### Requirements
+- Python **3.11** (recommended — required for ML library compatibility)
+- PostgreSQL
+- Git
 
-```
-git clone https://github.com/yourusername/clinic-instability-system.git
-```
+### Installation
 
-Navigate to backend:
-
-```
-cd clinic-backend
-```
-
-Create virtual environment:
-
-```
-python -m venv venv
+**1. Clone the repository:**
+```bash
+git clone https://github.com/Mono-eyeddev/clinic-instability-system.git
+cd clinic-instability-system/clinic-backend
 ```
 
-Activate environment:
-
-```
+**2. Create and activate a virtual environment using Python 3.11:**
+```bash
+# Windows
+py -3.11 -m venv venv
 venv\Scripts\activate
+
+# Linux / Mac
+python3.11 -m venv venv
+source venv/bin/activate
 ```
 
-Install dependencies:
-
-```
+**3. Install dependencies:**
+```bash
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-Run migrations:
+**4. Configure environment variables:**
 
+Create a `.env` file in `clinic-backend/` with:
+```env
+SECRET_KEY=your_secret_key
+DEBUG=True
+DB_NAME=your_db_name
+DB_USER=your_db_user
+DB_PASSWORD=your_db_password
+DB_HOST=localhost
+DB_PORT=5432
 ```
+
+**5. Run migrations:**
+```bash
+python manage.py makemigrations
 python manage.py migrate
 ```
 
-Start server:
-
+**6. Create a superuser:**
+```bash
+python manage.py createsuperuser
 ```
+
+**7. Start the server:**
+```bash
 python manage.py runserver
 ```
 
 ---
 
-# Frontend Setup
+## Frontend Setup
 
-Navigate to frontend folder:
-
-```
+**1. Navigate to frontend folder:**
+```bash
 cd clinic-frontend
 ```
 
-Install dependencies:
-
-```
+**2. Install dependencies:**
+```bash
 npm install
 ```
 
-Start development server:
-
-```
+**3. Start development server:**
+```bash
 npm run dev
 ```
 
 ---
 
-# Author
+## ⚠️ Python Version Note
 
-**Sajaad Iqbal**
+This project was built and tested on **Python 3.11**.
 
-Developer | AI Enthusiast | Full-Stack Engineer  
-Passionate about building intelligent systems that combine **machine learning, web technologies, and real-world problem solving**.
+If you are on a machine with a different Python version, install Python 3.11 separately and create the virtual environment using `py -3.11 -m venv venv` on Windows.
+
+The ML stack (`interpret`, `numpy`, `scikit-learn`) has known compatibility issues with Python 3.12+ pre-release builds.
 
 ---
 
-# License
+## Author
 
-This project is currently released for **academic and research purposes only**.
-The software was developed as part of a final-year academic project and is **not licensed for commercial use, redistribution, or modification without explicit permission from the author**.
+**Sajaad Iqbal**
+
+Developer · AI Enthusiast · Full-Stack Engineer  
+Passionate about building intelligent systems that combine **machine learning, web technologies, and real-world problem solving**.
+
+[![WhatsApp](https://img.shields.io/badge/WhatsApp-25D366?style=for-the-badge&logo=whatsapp&logoColor=white)](https://wa.me/+254115760476)
+[![Instagram](https://img.shields.io/badge/Instagram-E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/the___user_)
+[![Email](https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:Sajaadiqbalkarim7@gmail.com)
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Mono-eyeddev)
+
+---
+
+## License
+
+This project is released for **academic and research purposes only**.  
+Developed as a final-year academic project — **not licensed for commercial use, redistribution, or modification** without explicit permission from the author.  
 All rights reserved.
-Future versions of this system may be released under a **commercial license**.
