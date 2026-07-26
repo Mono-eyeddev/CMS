@@ -79,7 +79,13 @@ class KPISerializer(serializers.ModelSerializer):
     class Meta:
         model = ClinicKPI
         fields = "__all__"
-        read_only_fields = ["manager", "clinic", "created_at"]
+        read_only_fields = [
+            "manager",
+            "clinic",
+            "created_at",
+            "shift",
+            "shift_date",
+        ]
         
 class StaffSerializer(serializers.ModelSerializer):
 
